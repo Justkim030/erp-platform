@@ -1,0 +1,24 @@
+{
+  "name": "erp-platform",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Modular ERP platform: one microservice per module, sharing a single identity.",
+  "author": {
+    "name": "JUSTKIM",
+    "role": "Developer & Maintainer"
+  },
+  "workspaces": ["services/*", "apps/*"],
+  "scripts": {
+    "test": "npm run test -w @platform/identity && npm run test -w @platform/attendance",
+    "test:pg": "npm run test:pg -w @platform/identity && npm run test:pg -w @platform/attendance",
+    "typecheck": "npm run typecheck -w @platform/identity && npm run typecheck -w @platform/attendance && npm run typecheck -w @platform/portal-web",
+    "build": "npm run build -w @platform/identity && npm run build -w @platform/attendance && npm run build -w @platform/portal-web",
+    "dev:identity": "npm run start:memory -w @platform/identity",
+    "dev:attendance": "npm run start:memory -w @platform/attendance",
+    "dev:portal": "npm run dev -w @platform/portal-web",
+    "start:identity": "npm run start -w @platform/identity",
+    "start:attendance": "npm run start -w @platform/attendance",
+    "start:portal": "npm run start -w @platform/portal-web"
+  },
+  "engines": { "node": ">=20" }
+}

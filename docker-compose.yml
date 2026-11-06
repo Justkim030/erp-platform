@@ -1,0 +1,57 @@
+# Local and staging stack. Copy .env.example to .env first.
+# Only the portal is meant to be public. Identity and Attendance listen on localhost for development.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: platform
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-platform}
+      POSTGRES_DB: identity
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres:/docker-entrypoint-initdb.d:ro   # creates the separate "attendance" database
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U platform -d identity"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  identity:
+    build: { context: ., dockerfile: services/identity/Dockerfile }
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://platform:${POSTGRES_PASSWORD:-platform}@postgres:5432/identity
+      SIGNING_KEY_JWK: ${SIGNING_KEY_JWK:?Run "npm run gen-key -w @platform/identity" and put the result in .env}
+      PLATFORM_BOOTSTRAP_TOKEN: ${PLATFORM_BOOTSTRAP_TOKEN:?Set a long random value in .env}
+      PLATFORM_ALLOWED_IPS: ${PLATFORM_ALLOWED_IPS:-}
+      CORS_ORIGINS: http://localhost:3000
+      TRUST_PROXY: ${TRUST_PROXY:-1}
+    depends_on: { postgres: { condition: service_healthy } }
+    ports: ["127.0.0.1:3001:3001"]
+
+  attendance:
+    build: { context: ., dockerfile: services/attendance/Dockerfile }
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://platform:${POSTGRES_PASSWORD:-platform}@postgres:5432/attendance
+      IDENTITY_JWKS_URL: http://identity:3001/.well-known/jwks.json
+      IDENTITY_URL: http://identity:3001
+      CORS_ORIGINS: http://localhost:3000
+      TRUST_PROXY: ${TRUST_PROXY:-1}   # number of proxies in front of this service: 1 = the portal, 2 = a reverse proxy plus the portal
+      RETENTION_DAYS: ${RETENTION_DAYS:-90}
+    depends_on: { postgres: { condition: service_healthy }, identity: { condition: service_started } }
+    ports: ["127.0.0.1:3002:3002"]
+
+  portal:
+    build: { context: ., dockerfile: apps/portal-web/Dockerfile }
+    environment:
+      IDENTITY_URL: http://identity:3001
+      ATTENDANCE_URL: http://attendance:3002
+      DEFAULT_ORG: ${DEFAULT_ORG:?Set the organisation slug in .env}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}   # set to true behind HTTPS
+      CSP_MODE: ${CSP_MODE:-report-only}       # switch to "enforce" after checking in a real browser
+    depends_on: [identity, attendance]
+    ports: ["3000:3000"]
+
+volumes:
+  pgdata:

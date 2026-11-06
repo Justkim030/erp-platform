@@ -1,0 +1,19 @@
+node_modules
+dist
+.next
+.env
+*.log
+coverage
+
+# Live data / local infrastructure — never commit
+.pgtest/
+backups/
+qa-standalone*/
+
+# Build artifacts
+*.tsbuildinfo
+
+# OS / editor noise
+Thumbs.db
+Desktop.ini
+.DS_Store
