@@ -63,11 +63,12 @@ This is your current TODO list, taken from the roadmap. One item per branch.
 
 ### Step 1 — B-3: put the project under version control — ✅ done 2026-11-06
 
-Repo initialised with baseline commit `67fad22` (121 files). `.gitignore` verified to cover `.pgtest/`, `backups/`, `qa-standalone*/`, `*.tsbuildinfo`, `*.log`.
+- Baseline commit pushed to **https://github.com/Justkim030/erp-platform** (private, default branch `master`, commits authored by `JUSTKIM <Justkim030@users.noreply.github.com>`).
+- `git ls-files` audit passed: no `.env`, dumps, logs, `.pgtest/`, `node_modules`, `dist`, `.next`, or `*.tsbuildinfo` in the index.
+- Repo-local identity pinned to Justkim030; `gh` active account is Justkim030.
 
 Remaining:
 - [ ] Move `backups/*.dump` and `.pgtest/` to `C:\erp-artifacts\` (live employee data — ignored, but keep them off the project folder).
-- [ ] Create a GitHub/GitLab repo (private) and push.
 
 ### Step 2 — B-1: sanitise `x-forwarded-for` in the BFF (1 h, highest security value)
 
