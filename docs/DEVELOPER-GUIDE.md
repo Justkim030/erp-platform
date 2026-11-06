@@ -8,10 +8,10 @@ This is your operating manual: how the codebase is laid out, how to work on it d
 
 ## 1. Who does what
 
-| Role | Owner | Responsibility |
-|---|---|---|
-| Developer & maintainer | **JUSTKIM** | All code, tests, docs, deployments; owns every roadmap item |
-| Platform owner (you, when operating) | JUSTKIM | Holds `PLATFORM_BOOTSTRAP_TOKEN`, runs seed, approves go-live |
+| Role                                 | Owner       | Responsibility                                                |
+| ------------------------------------ | ----------- | ------------------------------------------------------------- |
+| Developer & maintainer               | **JUSTKIM** | All code, tests, docs, deployments; owns every roadmap item   |
+| Platform owner (you, when operating) | JUSTKIM     | Holds `PLATFORM_BOOTSTRAP_TOKEN`, runs seed, approves go-live |
 
 ## 2. Project layout (what lives where)
 
@@ -61,38 +61,44 @@ infra/postgres/init.sql  Creates the separate attendance database
 
 This is your current TODO list, taken from the roadmap. One item per branch.
 
-### Step 1 — B-3: put the project under version control (30 min, do it first, it protects everything else)
-- [ ] `git init` in the project root.
-- [ ] Extend `.gitignore` with `.pgtest/`, `backups/`, `qa-standalone*/`, `*.tsbuildinfo`.
-- [ ] Move `backups/*.dump` and `.pgtest/` to `C:\erp-artifacts\` (live employee data — never in the repo).
-- [ ] Delete or move the stray logs (`svc-*.log`, `npm-ci.log`, `pw-install*.log`, `qa-standalone.log`).
-- [ ] `git add -A` → check `git status` for anything sensitive → `git commit -m "baseline v0.2"`.
+### Step 1 — B-3: put the project under version control — ✅ done 2026-11-06
+
+Repo initialised with baseline commit `67fad22` (121 files). `.gitignore` verified to cover `.pgtest/`, `backups/`, `qa-standalone*/`, `*.tsbuildinfo`, `*.log`.
+
+Remaining:
+- [ ] Move `backups/*.dump` and `.pgtest/` to `C:\erp-artifacts\` (live employee data — ignored, but keep them off the project folder).
 - [ ] Create a GitHub/GitLab repo (private) and push.
 
 ### Step 2 — B-1: sanitise `x-forwarded-for` in the BFF (1 h, highest security value)
+
 - [ ] In `apps/portal-web/app/api/svc/[service]/[...path]/route.ts` around line 33: stop forwarding the browser-supplied `x-forwarded-for` verbatim. If the portal sits behind your own reverse proxy, compute the client address there and overwrite the header; otherwise drop it.
 - [ ] Verify the attendance service still sees the real client IP: `TRUST_PROXY` in compose = number of proxies in front (1 = portal only, 2 = reverse proxy + portal).
 - [ ] Add a test: a request with a forged `x-forwarded-for: 10.0.0.1` must not make the staff-network check pass.
 
 ### Step 3 — B-2: global exception filter (2 h)
+
 - [ ] Create `http-exception.filter.ts` in both services (code skeleton is in `docs/PRODUCTION-CHECKLIST.md` §1.1).
 - [ ] Include the correlation id from the request in the JSON error body and in the log line.
 - [ ] Register with `app.useGlobalFilters(new AllExceptionsFilter())` in both `setup.ts`.
 - [ ] Test: force a 500 (e.g. drop the DB pool) and assert the response is `{ statusCode, message, correlationId }`, never an HTML stack page.
 
 ### Step 4 — B-4: strong bootstrap token check (30 min)
+
 - [ ] In both `src/config.ts` `validateProductionConfig`: require `PLATFORM_BOOTSTRAP_TOKEN` set and `>= 32` characters.
 - [ ] Unit test: short token → startup blocked with a clear message.
 
 ### Step 5 — B-5: health endpoints + compose healthchecks (2 h)
+
 - [ ] `GET /healthz` → always 200 (liveness). `GET /readyz` → 200 only when the DB answers and (identity) the JWKS key is loaded.
 - [ ] Add `healthcheck:` blocks to `identity`, `attendance`, `portal` in `docker-compose.yml`; make attendance depend on identity with `condition: service_healthy`.
 
 ### Step 6 — N-1: rate limiting on the portal auth routes (1 day)
+
 - [ ] `apps/portal-web/lib/rate-limit.ts`: in-memory token bucket keyed by IP (e.g. 10 attempts / 5 min on login & activate).
 - [ ] Return 429 — the frontend already renders the friendly "too many attempts" message.
 
 ### After that
+
 Continue down `docs/ROADMAP.md` (N-3 → N-6, then 🟢 items). Then run the full go-live runbook in `docs/PRODUCTION-CHECKLIST.md` Phases 2–6.
 
 ## 5. Rules to protect yourself (and the data)

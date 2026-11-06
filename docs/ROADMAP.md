@@ -8,7 +8,7 @@
 | --- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------ |
 | B-1 | Sanitise `x-forwarded-for` in the BFF proxy so the staff-network check can't be spoofed | `apps/portal-web/app/api/svc/[service]/[...path]/route.ts` | 1 h    |
 | B-2 | Global exception filter returning JSON + correlation id on every error                  | both services' `setup.ts`                                  | 2 h    |
-| B-3 | Repo hygiene: `git init`, move `.pgtest/`, `backups/`, logs out of the repo             | repo root                                                  | 1 h    |
+| B-3 | ✅ Repo hygiene: `git init` done (baseline `67fad22`); `.gitignore` covers logs, `.pgtest/`, `backups/`, builds. Remaining: move dumps out + push to a private remote             | repo root                                                  | ~15 min left    |
 | B-4 | Require strong `PLATFORM_BOOTSTRAP_TOKEN` in `validateProductionConfig`                 | both `config.ts`                                           | 30 min |
 | B-5 | Health endpoints (`/healthz`, `/readyz`) + compose healthchecks                         | services + `docker-compose.yml`                            | 2 h    |
 
