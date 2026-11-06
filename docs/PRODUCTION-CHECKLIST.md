@@ -7,6 +7,7 @@ Follow these steps **in order**. Tick each box as you complete it. Companion doc
 ## Phase 0 — Repository hygiene (do today)
 
 ### 0.1 Put the project under version control
+
 - [ ] Run `git init` in the project root.
 - [ ] Review `.gitignore` (already covers `.env`, `*.log`, `node_modules`, `dist`, `.next`).
 - [ ] `git add -A` → inspect `git status` → confirm no `.env`, `.dump`, or `.log` files are staged.
@@ -14,6 +15,7 @@ Follow these steps **in order**. Tick each box as you complete it. Companion doc
 - [ ] From now on: one branch per change, PR into `main`.
 
 ### 0.2 Evict runtime artifacts
+
 - [ ] Create a folder **outside** the project, e.g. `C:\erp-artifacts\`.
 - [ ] Move `*.log`, `qa-standalone*/`, `pw-install*.log`, `npm-ci.log` there (or delete them — they're disposable logs).
 - [ ] Move `.pgtest\` (a real PostgreSQL data directory) and `backups\*.dump` to `C:\erp-artifacts\` — these contain live employee data.
@@ -23,40 +25,56 @@ Follow these steps **in order**. Tick each box as you complete it. Companion doc
 ## Phase 1 — Code fixes
 
 ### 1.1 Global exception filter (both services)
+
 - [ ] Create `services/identity/src/http-exception.filter.ts` and the same file for attendance:
 
 ```ts
-import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  ArgumentsHost,
+  Catch,
+  ExceptionFilter,
+  HttpException,
+  HttpStatus,
+} from "@nestjs/common";
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   catch(e: unknown, host: ArgumentsHost) {
     const res = host.switchToHttp().getResponse();
-    const status = e instanceof HttpException ? e.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
-    const message = e instanceof HttpException ? e.message : 'Internal server error.';
+    const status =
+      e instanceof HttpException
+        ? e.getStatus()
+        : HttpStatus.INTERNAL_SERVER_ERROR;
+    const message =
+      e instanceof HttpException ? e.message : "Internal server error.";
     // TODO: read correlation id from the request and include it here + log it
     res.status(status).json({ statusCode: status, message });
   }
 }
 ```
+
 - [ ] Register in both `setup.ts`: `app.useGlobalFilters(new AllExceptionsFilter());`
 - [ ] `npm run test -w @platform/identity && npm run test -w @platform/attendance` still pass.
 
 ### 1.2 Strengthen production config validation
+
 - [ ] In both `src/config.ts`, extend `validateProductionConfig`:
   - `PLATFORM_BOOTSTRAP_TOKEN` must be set and ≥ 32 chars.
   - `COOKIE_SECURE` note: portal only — check `.env` of the portal, not the service.
 - [ ] Add a unit test asserting startup is blocked when the token is short.
 
 ### 1.3 Sanitise the BFF's forwarded IP (HIGH priority)
+
 - [ ] In `apps/portal-web/app/api/svc/[service]/[...path]/route.ts` line ~33: do not pass the browser-supplied `x-forwarded-for` through unchanged. Either drop it, or set it to the portal's own knowledge of the client address. Otherwise a worker can spoof the staff-network check for clock-in.
-- [ ] Confirm the attendance service trusts exactly 1 proxy (`TRUST_PROXY=1`) so it reads the *last* hop, not the first.
+- [ ] Confirm the attendance service trusts exactly 1 proxy (`TRUST_PROXY=1`) so it reads the _last_ hop, not the first.
 
 ### 1.4 Rate-limit portal auth routes
+
 - [ ] Add a small token-bucket helper `apps/portal-web/lib/rate-limit.ts` keyed on IP for `/api/auth/login`, `/activate`, and the svc proxy.
 - [ ] Return 429 with the same friendly message the frontend already handles.
 
 ### 1.5 Health endpoints + compose healthchecks
+
 - [ ] Add `GET /healthz` (always 200) and `GET /readyz` (checks DB query + JWKS availability) to identity and attendance.
 - [ ] Add `healthcheck:` blocks to the `identity`, `attendance`, and `portal` services in `docker-compose.yml` mirroring the postgres one.
 - [ ] Change attendance's `depends_on` for identity to `condition: service_healthy`.

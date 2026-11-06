@@ -1,3 +1,4 @@
+-- Active: 1785411154695@@127.0.0.1@3306
 # Stage 2 completion report — Organisation structure (Identity)
 
 **Date:** 4 November 2026 · **Scope:** departments, supervisor-assignment history,
@@ -7,28 +8,28 @@ employee status history. No Attendance-side changes.
 
 ### Migration `003_organisation_structure` (Identity)
 
-| Table/Change | Purpose |
-|---|---|
-| `departments` | Name, optional code (unique per tenant when set), manager user reference, `active` flag (soft deactivation — history is never lost) |
-| `users.department_id`, `users.job_title` | Department membership and job title |
-| `supervisor_assignments` | Historical source of truth for who supervised whom and when: `assigned_at`, `assigned_by`, `ended_at`, `end_reason`; `CHECK (supervisor_id <> worker_id)`; open-assignment index |
-| `employee_status_history` | Every status change with previous status, who changed it, why, and the correlation id |
+| Table/Change                             | Purpose                                                                                                                                                                          |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `departments`                            | Name, optional code (unique per tenant when set), manager user reference, `active` flag (soft deactivation — history is never lost)                                              |
+| `users.department_id`, `users.job_title` | Department membership and job title                                                                                                                                              |
+| `supervisor_assignments`                 | Historical source of truth for who supervised whom and when: `assigned_at`, `assigned_by`, `ended_at`, `end_reason`; `CHECK (supervisor_id <> worker_id)`; open-assignment index |
+| `employee_status_history`                | Every status change with previous status, who changed it, why, and the correlation id                                                                                            |
 
 `users.supervisor_id` remains the fast "current supervisor" pointer, now kept in sync
 by the reassignment flow inside the same transaction.
 
 ### Endpoints (all tenant-scoped, route- and object-level enforced)
 
-| Route | Roles | Behaviour |
-|---|---|---|
-| `GET /v1/departments[?includeInactive=true]` | management, admin | Active list (or all) |
-| `POST /v1/departments` | management, admin | Create; 409 on duplicate name or code (constraint surfaced cleanly) |
-| `PUT /v1/departments/:id` | management, admin | Update |
-| `POST /v1/departments/:id/deactivate` | management, admin | Soft deactivation |
-| `POST /v1/workers/:id/supervisor` | management, admin | Reassign with reason; closes the open assignment row, opens a new one, updates the pointer — one transaction, one audit row |
-| `GET /v1/workers/:id/assignments` | supervisor (own team), management, admin | Assignment history |
-| `POST /v1/users/:id/status` | management, admin | `active`/`deactivated`; deactivation revokes all sessions immediately; history + audit in the same tx |
-| `GET /v1/users/:id/status-history` | supervisor (own team), management, admin | Status history |
+| Route                                        | Roles                                    | Behaviour                                                                                                                   |
+| -------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `GET /v1/departments[?includeInactive=true]` | management, admin                        | Active list (or all)                                                                                                        |
+| `POST /v1/departments`                       | management, admin                        | Create; 409 on duplicate name or code (constraint surfaced cleanly)                                                         |
+| `PUT /v1/departments/:id`                    | management, admin                        | Update                                                                                                                      |
+| `POST /v1/departments/:id/deactivate`        | management, admin                        | Soft deactivation                                                                                                           |
+| `POST /v1/workers/:id/supervisor`            | management, admin                        | Reassign with reason; closes the open assignment row, opens a new one, updates the pointer — one transaction, one audit row |
+| `GET /v1/workers/:id/assignments`            | supervisor (own team), management, admin | Assignment history                                                                                                          |
+| `POST /v1/users/:id/status`                  | management, admin                        | `active`/`deactivated`; deactivation revokes all sessions immediately; history + audit in the same tx                       |
+| `GET /v1/users/:id/status-history`           | supervisor (own team), management, admin | Status history                                                                                                              |
 
 ### Behaviour integrated with existing flows
 
@@ -53,12 +54,12 @@ by the reassignment flow inside the same transaction.
 
 ## Testing
 
-| Suite | Environment | Result |
-|---|---|---|
-| Identity unit: 19 (Stage 0/1) + **14 new Stage 2** | pg-mem | **33 pass**, 7 real-DB skipped |
-| Identity real-DB: 7 (Stage 0/1) + **1 new Stage 2** (comprehensive: constraints 409s, department on worker, reassignment history 2 rows closed+open, status history, soft deactivation, 4 audit actions verified in DB) | real PostgreSQL 18.4 | **8 pass** |
-| Attendance unit (20) + real-DB (9) | pg-mem / real PG | **unchanged, all pass** |
-| Typecheck, build | — | **clean** |
+| Suite                                                                                                                                                                                                                   | Environment          | Result                         |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ------------------------------ |
+| Identity unit: 19 (Stage 0/1) + **14 new Stage 2**                                                                                                                                                                      | pg-mem               | **33 pass**, 7 real-DB skipped |
+| Identity real-DB: 7 (Stage 0/1) + **1 new Stage 2** (comprehensive: constraints 409s, department on worker, reassignment history 2 rows closed+open, status history, soft deactivation, 4 audit actions verified in DB) | real PostgreSQL 18.4 | **8 pass**                     |
+| Attendance unit (20) + real-DB (9)                                                                                                                                                                                      | pg-mem / real PG     | **unchanged, all pass**        |
+| Typecheck, build                                                                                                                                                                                                        | —                    | **clean**                      |
 
 ## Honest notes
 
