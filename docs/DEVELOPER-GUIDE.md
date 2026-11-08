@@ -70,28 +70,23 @@ This is your current TODO list, taken from the roadmap. One item per branch.
 Remaining:
 - [ ] Move `backups/*.dump` and `.pgtest/` to `C:\erp-artifacts\` (live employee data — ignored, but keep them off the project folder).
 
-### Step 2 — B-1: sanitise `x-forwarded-for` in the BFF (1 h, highest security value)
+### Step 2 — B-1: sanitise `x-forwarded-for` in the BFF — ✅ implemented
 
-- [ ] In `apps/portal-web/app/api/svc/[service]/[...path]/route.ts` around line 33: stop forwarding the browser-supplied `x-forwarded-for` verbatim. If the portal sits behind your own reverse proxy, compute the client address there and overwrite the header; otherwise drop it.
-- [ ] Verify the attendance service still sees the real client IP: `TRUST_PROXY` in compose = number of proxies in front (1 = portal only, 2 = reverse proxy + portal).
-- [ ] Add a test: a request with a forged `x-forwarded-for: 10.0.0.1` must not make the staff-network check pass.
+- [x] The BFF ignores browser-supplied forwarding headers and forwards only a validated IP supplied by the trusted Next.js adapter.
+- [x] If no trusted adapter IP is available, no client IP is forwarded; confirm the deployed edge and proxy-hop configuration before relying on IP rules.
 
-### Step 3 — B-2: global exception filter (2 h)
+### Step 3 — B-2: global exception filter — ✅ implemented
 
-- [ ] Create `http-exception.filter.ts` in both services (code skeleton is in `docs/PRODUCTION-CHECKLIST.md` §1.1).
-- [ ] Include the correlation id from the request in the JSON error body and in the log line.
-- [ ] Register with `app.useGlobalFilters(new AllExceptionsFilter())` in both `setup.ts`.
-- [ ] Test: force a 500 (e.g. drop the DB pool) and assert the response is `{ statusCode, message, correlationId }`, never an HTML stack page.
+- [x] Both services return correlated JSON errors and log server failures with the correlation id.
+- [x] Regression tests assert correlated errors.
 
-### Step 4 — B-4: strong bootstrap token check (30 min)
+### Step 4 — B-4: strong bootstrap token check — ✅ implemented
 
-- [ ] In both `src/config.ts` `validateProductionConfig`: require `PLATFORM_BOOTSTRAP_TOKEN` set and `>= 32` characters.
-- [ ] Unit test: short token → startup blocked with a clear message.
+- [x] Identity requires a present, at-least-32-byte token in production; tests cover missing and short values.
 
-### Step 5 — B-5: health endpoints + compose healthchecks (2 h)
+### Step 5 — B-5: health endpoints + compose healthchecks — ✅ implemented
 
-- [ ] `GET /healthz` → always 200 (liveness). `GET /readyz` → 200 only when the DB answers and (identity) the JWKS key is loaded.
-- [ ] Add `healthcheck:` blocks to `identity`, `attendance`, `portal` in `docker-compose.yml`; make attendance depend on identity with `condition: service_healthy`.
+- [x] Liveness/readiness endpoints and container healthchecks are in place; Attendance readiness checks the Identity JWKS endpoint.
 
 ### Step 6 — N-1: rate limiting on the portal auth routes (1 day)
 

@@ -10,9 +10,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!user) redirect('/login');
   return (
     <div className="shell">
-      <Sidebar org={user.tenant.name} roleLabel={ROLE_LABEL[user.role]} name={user.fullName} />
+      <Sidebar org={user.tenant.name} roleLabel={ROLE_LABEL[user.role]} name={user.fullName} role={user.role} />
       <div className="content">{children}</div>
-      <TabBar />
+      <TabBar role={user.role} />
     </div>
   );
 }

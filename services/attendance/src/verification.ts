@@ -93,7 +93,7 @@ const niceDistance = (m: number) => (m < 1000 ? `${Math.max(10, Math.round(m / 1
 /** Plain-language result for the worker. Success says little; problems say what to do next, without naming internal checks. */
 export function workerMessage(kind: 'in' | 'out', v: Verdict, site: SiteRow, at: Date): string {
   const t = clockTime(site.timezone, at);
-  if (v.outcome === 'accepted') return kind === 'in' ? `Clocked in at ${t}.` : `Clocked out at ${t}. Your work report was submitted.`;
+  if (v.outcome === 'accepted') return kind === 'in' ? `Clocked in at ${t}.` : `Clocked out at ${t}. Your attendance has been recorded.`;
   if (v.outcome === 'review') return `Recorded at ${t}. Your supervisor will review this entry.`;
   if (v.reasons.includes('network_not_recognised')) return `Please connect to the ${site.name} staff network and try again.`;
   if (v.reasons.includes('outside_site') && v.distanceM != null) return `We could not confirm you are at ${site.name}. You appear to be about ${niceDistance(v.distanceM)} away. Move closer and try again, or ask your supervisor to review.`;

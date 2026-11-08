@@ -4,6 +4,8 @@
 **Scope audited:** `erp-platform-v0.2` — Identity service, Attendance service, Portal (Next.js), docs, Docker setup.
 **Method:** Full source inspection (both services, portal, migrations, tests, docs, Docker/compose), plus the verification run performed on 3–4 November 2026 (39 automated tests, typecheck, build, standalone-image runtime check, headless-browser walkthrough of login, dashboard, map and sites pages).
 
+> **Historical snapshot:** The tables below describe the audit state at the date above. Follow-up implementation has since added attendance sessions, exception/correction workflows, physical verification, structured daily reports and reviews, management insights/CSV export, and scoped task management with report linkage. Production-readiness updates include sanitized BFF IP forwarding, correlated JSON exception filters, a strong Identity bootstrap-token check, and service/portal health checks. Remaining items—including passkeys, attachments/privacy requests, PWA/offline support, notification delivery, and deployment verification—are not represented as completed by this note.
+
 ---
 
 ## Part 1 — What the current system actually is

@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditService } from './audit';
 import { AppConfig, CONFIG } from './config';
 import { Db, Q } from './db';
@@ -42,7 +42,11 @@ export class AdminService {
     let supervisorId: string | null = null;
     if (dto.role === 'worker') {
       supervisorId = actor.role === 'supervisor' ? actor.sub : dto.supervisorId ?? null;
-      if (supervisorId && !(await this.db.query(`SELECT id FROM users WHERE id=$1 AND tenant_id=$2 AND role='supervisor'`, [supervisorId, actor.tid])).length) {
+      if (!supervisorId && actor.role !== 'supervisor' &&
+          (await this.db.query(`SELECT id FROM users WHERE tenant_id=$1 AND role='supervisor' AND status='active' LIMIT 1`, [actor.tid])).length) {
+        throw new BadRequestException('Assign this worker to an active supervisor.');
+      }
+      if (supervisorId && !(await this.db.query(`SELECT id FROM users WHERE id=$1 AND tenant_id=$2 AND role='supervisor' AND status='active'`, [supervisorId, actor.tid])).length) {
         throw new NotFoundException('Supervisor not found.');
       }
     }
@@ -206,7 +210,7 @@ export class AdminService {
       await q(`SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, [`reassign:${workerId}`]);
       const worker = (await q('SELECT * FROM users WHERE id=$1 AND tenant_id=$2', [workerId, actor.tid]))[0];
       if (!worker || worker.role !== 'worker') throw new NotFoundException('Worker not found.');
-      const sup = (await q(`SELECT * FROM users WHERE id=$1 AND tenant_id=$2 AND role='supervisor'`, [dto.supervisorId, actor.tid]))[0];
+      const sup = (await q(`SELECT * FROM users WHERE id=$1 AND tenant_id=$2 AND role='supervisor' AND status='active'`, [dto.supervisorId, actor.tid]))[0];
       if (!sup) throw new NotFoundException('Supervisor not found.');
       if (worker.supervisor_id === sup.id) return { workerId, supervisorId: sup.id, changed: false };
       const previousSupervisorId = worker.supervisor_id;

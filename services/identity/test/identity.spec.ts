@@ -5,10 +5,11 @@ import { createLocalJWKSet, jwtVerify } from 'jose';
 import { newDb } from 'pg-mem';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
-import { CONFIG, config } from '../src/config';
-import { PG_POOL } from '../src/db';
+import { CONFIG, config, validateProductionConfig } from '../src/config';
+import { Db, PG_POOL } from '../src/db';
 import { ipInCidr } from '../src/net';
 import { Notifier } from '../src/notifier';
+import { newId, TokenService } from '../src/security';
 import { configureApp } from '../src/setup';
 
 class RecordingNotifier extends Notifier {
@@ -55,6 +56,38 @@ describe('hidden platform endpoints', () => {
   it('answer 404 without the right token', async () => {
     await api().post('/v1/platform/organisations').send({ name: 'X Org', slug: 'xorg', adminStaffNumber: '1', adminName: 'Ad Min' }).expect(404);
     await platform('/organisations', { name: 'X Org', slug: 'xorg', adminStaffNumber: '1', adminName: 'Ad Min' }, 'wrong').expect(404);
+  });
+
+  describe('system readiness and errors', () => {
+    it('exposes liveness/readiness and includes a correlation id on API errors', async () => {
+      await api().get('/healthz').expect(200, { status: 'ok' });
+      await api().get('/readyz').expect(200, { status: 'ready' });
+      const response = await api().post('/v1/auth/login').set('x-correlation-id', 'trace-test-123').send({}).expect(400);
+      expect(response.headers['x-correlation-id']).toBe('trace-test-123');
+      expect(response.body.correlationId).toBe('trace-test-123');
+    });
+
+    it('requires a strong production bootstrap token', () => {
+      const oldDatabaseUrl = process.env.DATABASE_URL;
+      const oldRpId = process.env.WEBAUTHN_RP_ID;
+      const oldOrigins = process.env.WEBAUTHN_ORIGINS;
+      process.env.DATABASE_URL = 'postgres://platform:secret@localhost/identity';
+      process.env.WEBAUTHN_RP_ID = 'example.com';
+      process.env.WEBAUTHN_ORIGINS = 'https://portal.example.com';
+      try {
+        const base = { ...config(), env: 'production', signingKeyJwk: '{"kty":"OKP"}' };
+        expect(validateProductionConfig({ ...base, bootstrapToken: undefined })).toContain('PLATFORM_BOOTSTRAP_TOKEN is required in production.');
+        expect(validateProductionConfig({ ...base, bootstrapToken: 'short' })).toContain('PLATFORM_BOOTSTRAP_TOKEN must contain at least 32 bytes in production.');
+        expect(validateProductionConfig({ ...base, bootstrapToken: 'a'.repeat(32) })).toEqual([]);
+      } finally {
+        if (oldDatabaseUrl === undefined) delete process.env.DATABASE_URL;
+        else process.env.DATABASE_URL = oldDatabaseUrl;
+        if (oldRpId === undefined) delete process.env.WEBAUTHN_RP_ID;
+        else process.env.WEBAUTHN_RP_ID = oldRpId;
+        if (oldOrigins === undefined) delete process.env.WEBAUTHN_ORIGINS;
+        else process.env.WEBAUTHN_ORIGINS = oldOrigins;
+      }
+    });
   });
   it('create an organisation whose administrator sets their own password', async () => {
     const adminToken = await makeOrg('alpha');
@@ -106,6 +139,44 @@ describe('supervisors add employees; first sign-in sets a hashed PIN or password
     await login('alpha', '0457', '482915').expect(200); // afterwards it is just login
     await login('alpha', '0457', '000000').expect(401);
   });
+  it('exposes passkey management options only to an active worker and keeps passkey clock checks optional until enrollment', async () => {
+    const worker = (await login('alpha', '0457', '482915').expect(200)).body.accessToken;
+    await api().get('/v1/auth/passkeys').set('Authorization', `Bearer ${worker}`).expect(200, []);
+    const registration = await api().post('/v1/auth/passkeys/registration/options').set('Authorization', `Bearer ${worker}`).send({}).expect(200);
+    expect(registration.body).toMatchObject({
+      requestId: expect.any(String),
+      options: { challenge: expect.any(String), rp: { id: 'localhost', name: 'ERP Platform' }, authenticatorSelection: { userVerification: 'required' } },
+    });
+    await api().post('/v1/auth/passkeys/clock/options').set('Authorization', `Bearer ${worker}`).send({}).expect(200, { required: false });
+    const management = (await login('alpha', '0001', PASS).expect(200)).body.accessToken;
+    await api().get('/v1/auth/passkeys').set('Authorization', `Bearer ${management}`).expect(403);
+  });
+  it('requires an enrolled worker to consume a signed, one-use passkey proof for clock-in', async () => {
+    const worker = (await login('alpha', '0457', '482915').expect(200)).body.accessToken;
+    const user = (await app.get(Db).query('SELECT * FROM users WHERE staff_number=$1', ['0457']))[0];
+    const credentialId = `credential-${newId()}`;
+    await app.get(Db).query(
+      `INSERT INTO passkeys (id,tenant_id,user_id,credential_id,public_key,counter,transports,name,device_type,backed_up)
+       VALUES ($1,$2,$3,$4,$5,0,'[]','Test device','singleDevice',false)`,
+      [newId(), user.tenant_id, user.id, credentialId, Buffer.from('public-key').toString('base64url')]);
+    const clockOptions = await api().post('/v1/auth/passkeys/clock/options').set('Authorization', `Bearer ${worker}`).send({}).expect(200);
+    expect(clockOptions.body.required).toBe(true);
+    expect(clockOptions.body.options.allowCredentials[0].id).toBe(credentialId);
+    await api().post('/v1/auth/passkeys/clock/consume').set('Authorization', `Bearer ${worker}`).send({}).expect(403);
+
+    const jti = newId();
+    const proof = await app.get(TokenService).signClockInProof({ sub: user.id, tid: user.tenant_id, jti });
+    await app.get(Db).query(
+      `INSERT INTO passkey_clock_proofs (jti,tenant_id,user_id,expires_at) VALUES ($1,$2,$3,$4)`,
+      [jti, user.tenant_id, user.id, new Date(Date.now() + 90_000)]);
+    await api().post('/v1/auth/passkeys/clock/consume').set('Authorization', `Bearer ${worker}`).send({ proof }).expect(200, { required: true });
+    await api().post('/v1/auth/passkeys/clock/consume').set('Authorization', `Bearer ${worker}`).send({ proof }).expect(403);
+  });
+  it('requires management to assign workers when active supervisors exist', async () => {
+    await addUser(admin, { staffNumber: '0460', fullName: 'Unassigned Worker', role: 'worker' }).expect(400);
+    const created = await addUser(admin, { staffNumber: '0461', fullName: 'Assigned Worker', role: 'worker', supervisorId: sup.id }).expect(201);
+    expect(created.body.user.supervisorId).toBe(sup.id);
+  });
   it('enforces PIN rules and keeps PINs to workers', async () => {
     const w = await addUser(sup.token, { staffNumber: '0458', fullName: 'Peter Njeru', role: 'worker' }).expect(201);
     for (const weak of ['123456', '111111', '121212', '12345', 'abcdef', '654321']) {
@@ -125,7 +196,7 @@ describe('supervisors add employees; first sign-in sets a hashed PIN or password
     await addUser(sup.token, { staffNumber: '0302', fullName: 'Sneaky Admin', role: 'admin' }).expect(403);
     await addUser(sup.token, { staffNumber: '0457', fullName: 'Duplicate', role: 'worker' }).expect(409);
     const mine = (await api().get('/v1/users').set('Authorization', `Bearer ${sup.token}`).expect(200)).body;
-    expect(mine.map((u: any) => u.staffNumber).sort()).toEqual(['0457', '0458', '0459']);
+    expect(mine.map((u: any) => u.staffNumber).sort()).toEqual(['0457', '0458', '0459', '0461']);
     const theirs = (await api().get('/v1/users').set('Authorization', `Bearer ${sup2.token}`).expect(200)).body;
     expect(theirs).toHaveLength(0);
   });

@@ -5,11 +5,17 @@ import { requireUser, svc } from '@/lib/session';
 export default async function TeamPage() {
   const user = await requireUser(['supervisor', 'management', 'admin']);
   const users = await svc<any[]>('identity', '/v1/users');
+  const supervisors = users?.filter((u) => u.role === 'supervisor' && u.status === 'active') ?? [];
   return (
     <div className="stack" style={{ maxWidth: 640 }}>
       <div><p className="eb">{user.role === 'supervisor' ? 'Your team' : 'Everyone in the organisation'}</p><h1 className="h">Team</h1></div>
       <div className="actions"><Link className="btn sm" href="/team/new">Add employee</Link></div>
-      {users ? <TeamList users={users.filter((u) => u.id !== user.id)} canReset /> : <p className="notice">The team list is unavailable right now.</p>}
+      {users ? (
+        <>
+          {user.role !== 'supervisor' && <p className="notice">Supervisors review assigned workers' clock entries first. {supervisors.length ? 'Assign workers below; ' : 'Create an active supervisor before assigning workers; '}management can still review the whole organisation.</p>}
+          <TeamList users={users.filter((u) => u.id !== user.id)} canReset canAssign={user.role !== 'supervisor'} supervisors={supervisors} />
+        </>
+      ) : <p className="notice">The team list is unavailable right now.</p>}
     </div>
   );
 }

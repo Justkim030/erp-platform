@@ -1,10 +1,12 @@
 import { LogoutButton } from '@/components/LogoutButton';
-import { getSession } from '@/lib/session';
+import { PasskeyManager } from '@/components/PasskeyManager';
+import { getSession, svc } from '@/lib/session';
 
 const ROLE_LABEL = { worker: 'Worker', supervisor: 'Supervisor', management: 'Management', admin: 'Administrator' } as const;
 
 export default async function ProfilePage() {
   const u = (await getSession())!;
+  const passkeys = u.role === 'worker' ? await svc<any[]>('identity', '/v1/auth/passkeys') : [];
   const initials = u.fullName.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase();
   return (
     <div className="stack" style={{ maxWidth: 560 }}>
@@ -17,7 +19,9 @@ export default async function ProfilePage() {
         <div className="li"><span>Phone<small>{u.phone ?? 'Not provided'}</small></span></div>
       </div>
       <p className="sec">Security</p>
-      <div className="card"><div className="li"><span>Passkey<small>Fingerprint or face log in. Available in the next release.</small></span><span className="chip wn">Coming soon</span></div></div>
+      {u.role === 'worker'
+        ? passkeys ? <PasskeyManager passkeys={passkeys} /> : <p className="notice">Passkey settings are unavailable right now. Refresh the page to try again.</p>
+        : <div className="card"><p className="sub">Passkeys are currently used by workers to confirm clock-ins.</p></div>}
       <p className="sec">Privacy and data</p>
       <div className="card"><div className="li"><span>What we collect<small>Account details and clock-in times. No location tracking.</small></span></div></div>
       <LogoutButton />

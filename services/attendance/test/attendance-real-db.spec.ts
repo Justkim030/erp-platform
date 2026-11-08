@@ -49,7 +49,6 @@ const auth = (t: string) => ({ Authorization: `Bearer ${t}` });
 const CENTER = { lat: -0.5388, lng: 37.4596 };
 const reading = (o: Partial<{ lat: number; lng: number; accuracy: number }> = {}) => ({ ...CENTER, accuracy: 15, capturedAt: new Date().toISOString(), ...o });
 const member = (id: string, n: string, role = 'worker'): Member => ({ id, staffNumber: n, fullName: `Person ${n}`, role, status: 'active', supervisorId: null });
-
 beforeAll(async () => {
   if (!DB_URL) return;
   const { publicKey, privateKey } = await generateKeyPair('EdDSA', { crv: 'Ed25519', extractable: true });
@@ -100,7 +99,11 @@ dd('real PostgreSQL: attendance state transitions and concurrency', () => {
     // (Attendance events for test worker ids only; schema_migrations and site data persist.)
     await pool.query(
       `DELETE FROM audit_events WHERE actor_id LIKE 'real-%' OR target IN (SELECT id FROM attendance_events WHERE user_id LIKE 'real-%')`);
+    await pool.query(`DELETE FROM physical_verifications WHERE worker_id LIKE 'real-%'`);
+    await pool.query(`DELETE FROM attendance_exceptions WHERE worker_id LIKE 'real-%'`);
+    await pool.query(`DELETE FROM work_reports WHERE worker_id LIKE 'real-%'`);
     await pool.query(`DELETE FROM attendance_events WHERE user_id LIKE 'real-%'`);
+    await pool.query(`DELETE FROM attendance_sessions WHERE user_id LIKE 'real-%'`);
     // One site per tenant so clock-ins have a target; created by management, like in production.
     for (const tid of ['tenant-a', 'tenant-b']) {
       const existing = await pool.query(`SELECT id FROM sites WHERE tenant_id=$1 AND name='Main Gate'`, [tid]);

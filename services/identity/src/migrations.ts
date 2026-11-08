@@ -83,4 +83,29 @@ export const MIGRATIONS: { id: string; statements: string[] }[] = [
       `CREATE INDEX employee_status_history_user ON employee_status_history (tenant_id, user_id, effective_from)`,
     ],
   },
+  {
+    id: '004_passkeys',
+    statements: [
+      `CREATE TABLE passkeys (
+        id text PRIMARY KEY, tenant_id text NOT NULL REFERENCES tenants(id),
+        user_id text NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        credential_id text NOT NULL UNIQUE, public_key text NOT NULL,
+        counter bigint NOT NULL DEFAULT 0, transports text NOT NULL DEFAULT '[]',
+        name text NOT NULL, device_type text NOT NULL, backed_up boolean NOT NULL DEFAULT false,
+        created_at timestamptz NOT NULL DEFAULT now(), last_used_at timestamptz)`,
+      `CREATE INDEX passkeys_user ON passkeys (tenant_id, user_id)`,
+      `CREATE TABLE webauthn_challenges (
+        id text PRIMARY KEY, tenant_id text NOT NULL REFERENCES tenants(id),
+        user_id text NOT NULL REFERENCES users(id),
+        purpose text NOT NULL CHECK (purpose IN ('registration','clock-in')),
+        challenge text NOT NULL, expires_at timestamptz NOT NULL,
+        used_at timestamptz, created_at timestamptz NOT NULL DEFAULT now())`,
+      `CREATE INDEX webauthn_challenges_user ON webauthn_challenges (tenant_id, user_id, purpose, created_at)`,
+      `CREATE TABLE passkey_clock_proofs (
+        jti text PRIMARY KEY, tenant_id text NOT NULL REFERENCES tenants(id),
+        user_id text NOT NULL REFERENCES users(id), expires_at timestamptz NOT NULL,
+        used_at timestamptz, created_at timestamptz NOT NULL DEFAULT now())`,
+      `CREATE INDEX passkey_clock_proofs_user ON passkey_clock_proofs (tenant_id, user_id, expires_at)`,
+    ],
+  },
 ];

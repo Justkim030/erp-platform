@@ -3,30 +3,33 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { HistoryIcon, HomeIcon, ProfileIcon } from './Icons';
 
-const items = [
+type Role = 'worker' | 'supervisor' | 'management' | 'admin';
+const itemsFor = (role: Role) => [
   { href: '/home', label: 'Home', Icon: HomeIcon, also: ['/team', '/map', '/sites'] },
   { href: '/history', label: 'History', Icon: HistoryIcon, also: [] as string[] },
+  { href: '/tasks', label: 'Tasks', Icon: HistoryIcon, also: [] as string[] },
+  { href: '/reports', label: role === 'worker' ? 'My reports' : role === 'supervisor' ? 'Team reports' : 'Insights', Icon: HistoryIcon, also: [] as string[] },
   { href: '/profile', label: 'Profile', Icon: ProfileIcon, also: [] as string[] },
 ];
-const active = (path: string, i: (typeof items)[number]) => [i.href, ...i.also].some((p) => path === p || path.startsWith(`${p}/`));
+const active = (path: string, i: ReturnType<typeof itemsFor>[number]) => [i.href, ...i.also].some((p) => path === p || path.startsWith(`${p}/`));
 
-export function Sidebar({ org, roleLabel, name }: { org: string; roleLabel: string; name: string }) {
+export function Sidebar({ org, roleLabel, name, role }: { org: string; roleLabel: string; name: string; role: Role }) {
   const path = usePathname();
   return (
     <aside className="side">
       <b>PresenceHub</b>
       <small>{org} · {roleLabel}</small>
-      {items.map((i) => (<Link key={i.href} href={i.href} className={active(path, i) ? 'on' : ''}>{i.label}</Link>))}
+      {itemsFor(role).map((i) => (<Link key={i.href} href={i.href} className={active(path, i) ? 'on' : ''}>{i.label}</Link>))}
       <p className="who">{name}</p>
     </aside>
   );
 }
 
-export function TabBar() {
+export function TabBar({ role }: { role: Role }) {
   const path = usePathname();
   return (
     <nav className="tabs" aria-label="Main">
-      {items.map((i) => (<Link key={i.href} href={i.href} className={active(path, i) ? 'on' : ''}><i.Icon />{i.label}</Link>))}
+      {itemsFor(role).map((i) => (<Link key={i.href} href={i.href} className={active(path, i) ? 'on' : ''}><i.Icon />{i.label}</Link>))}
     </nav>
   );
 }

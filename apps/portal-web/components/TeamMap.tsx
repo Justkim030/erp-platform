@@ -8,6 +8,7 @@ export function TeamMap() {
   const [date, setDate] = useState(todayLocal());
   const [data, setData] = useState<{ points: MapPoint[]; sites: MapSite[] } | null>(null);
   const [error, setError] = useState('');
+  const [employee, setEmployee] = useState('');
 
   useEffect(() => {
     let alive = true;
@@ -17,24 +18,34 @@ export function TeamMap() {
       .catch(() => alive && setError('The map could not be loaded. Try again shortly.'));
     return () => { alive = false; };
   }, [date]);
+  const query = employee.trim().toLocaleLowerCase();
+  const visiblePoints = data?.points.filter((p) =>
+    !query || [p.userId, p.staffNumber, p.fullName].some((value) => value?.toLocaleLowerCase().includes(query)),
+  ) ?? [];
 
   return (
     <div className="stack">
       <label style={{ maxWidth: 220 }}>Day<input type="date" value={date} max={todayLocal()} onChange={(e) => e.target.value && setDate(e.target.value)} /></label>
+      <label style={{ maxWidth: 420 }}>Employee ID, staff number, or name
+        <input type="search" value={employee} onChange={(e) => setEmployee(e.target.value)} placeholder="Filter clock locations" />
+      </label>
       {error && <div className="err" role="alert">{error}</div>}
-      <Map points={data?.points ?? []} sites={data?.sites ?? []} />
+      <Map points={visiblePoints} sites={data?.sites ?? []} />
       <div className="legend" aria-label="Map key">
+        <span><i style={{ borderColor: '#1b8a8f', background: 'transparent' }} />Site work area</span>
         <span><i style={{ borderColor: '#0b3c49', background: '#1b8a8f' }} />Clock-in</span>
         <span><i style={{ borderColor: '#92400e', background: '#f59e0b' }} />Clock-out</span>
         <span><i style={{ borderColor: '#9a2222', background: 'transparent' }} />Declined</span>
         <span><i style={{ borderColor: '#0b3c49', background: '#1b8a8f', borderStyle: 'dashed' }} />Waiting for review</span>
+        <span><i style={{ borderColor: '#64748b', background: 'transparent', borderStyle: 'dashed' }} />Approximate GPS accuracy</span>
       </div>
       <div className="card">
-        <b>{dateOf(`${date}T12:00:00+03:00`)} · {data ? `${data.points.length} location${data.points.length === 1 ? '' : 's'}` : 'Loading…'}</b>
+        <b>{dateOf(`${date}T12:00:00+03:00`)} · {data ? `${visiblePoints.length} location${visiblePoints.length === 1 ? '' : 's'}` : 'Loading…'}</b>
         {data && data.points.length === 0 && <p className="sub">No locations were recorded for this day. Exact coordinates are erased after the retention period.</p>}
-        {data?.points.map((p) => (
+        {data && data.points.length > 0 && visiblePoints.length === 0 && <p className="sub">No clock locations match that employee.</p>}
+        {visiblePoints.map((p) => (
           <div className="li" key={p.id}>
-            <span>{p.fullName ?? 'Employee'} · {p.kind === 'in' ? 'clock-in' : 'clock-out'} {timeOf(p.at)}<small>Accuracy {p.accuracyM == null ? 'unknown' : `${Math.round(p.accuracyM)} m`}</small></span>
+            <span>{p.fullName ?? 'Employee'} · {p.kind === 'in' ? 'clock-in' : 'clock-out'} {timeOf(p.at)}<small>Staff no. {p.staffNumber ?? 'unknown'} · ID {p.userId} · accuracy {p.accuracyM == null ? 'unknown' : `about ${Math.round(p.accuracyM)} m`}</small></span>
             <span className={`chip ${p.outcome === 'accepted' ? 'ok' : p.outcome === 'review' ? 'wn' : 'bd'}`}>{p.outcome === 'accepted' ? 'Confirmed' : p.outcome === 'review' ? 'Review' : 'Declined'}</span>
           </div>
         ))}

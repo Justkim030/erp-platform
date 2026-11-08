@@ -13,6 +13,9 @@ export const config = () => ({
   lockoutThreshold: Number(process.env.LOCKOUT_THRESHOLD ?? 5),
   lockoutMinutes: Number(process.env.LOCKOUT_MINUTES ?? 15),
   corsOrigins: (process.env.CORS_ORIGINS ?? 'http://localhost:3000').split(','),
+  webauthnRpId: process.env.WEBAUTHN_RP_ID ?? 'localhost',
+  webauthnRpName: process.env.WEBAUTHN_RP_NAME ?? 'ERP Platform',
+  webauthnOrigins: (process.env.WEBAUTHN_ORIGINS ?? 'http://localhost:3000').split(',').map((s) => s.trim()).filter(Boolean),
   trustProxy: process.env.TRUST_PROXY as string | undefined,
   platformAllowedIps: (process.env.PLATFORM_ALLOWED_IPS ?? '').split(',').map((s) => s.trim()).filter(Boolean),
 });
@@ -24,6 +27,32 @@ export function validateProductionConfig(c: AppConfig): string[] {
   if (!process.env.DATABASE_URL) problems.push('DATABASE_URL is required in production (refusing to start with a fallback database).');
   if (c.databaseUrl.includes('pg-mem') || c.databaseUrl.includes(':memory:')) problems.push('In-memory database URLs are not permitted in production.');
   if (!c.signingKeyJwk) problems.push('SIGNING_KEY_JWK is required in production (no signing key, no tokens).');
+  if (!c.bootstrapToken) problems.push('PLATFORM_BOOTSTRAP_TOKEN is required in production.');
+  else if (Buffer.byteLength(c.bootstrapToken, 'utf8') < 32) problems.push('PLATFORM_BOOTSTRAP_TOKEN must contain at least 32 bytes in production.');
+  if (!process.env.WEBAUTHN_RP_ID) problems.push('WEBAUTHN_RP_ID is required in production.');
+  if (!process.env.WEBAUTHN_ORIGINS) problems.push('WEBAUTHN_ORIGINS is required in production.');
+  try {
+    const rp = new URL(`https://${c.webauthnRpId}`);
+    if (rp.host !== c.webauthnRpId || rp.pathname !== '/') problems.push('WEBAUTHN_RP_ID must be a hostname without a scheme, port, or path.');
+  } catch {
+    problems.push('WEBAUTHN_RP_ID must be a valid hostname.');
+  }
+  for (const origin of c.webauthnOrigins) {
+    try {
+      const url = new URL(origin);
+      if (url.origin !== origin || (url.protocol !== 'https:' && url.hostname !== 'localhost')) {
+        problems.push('WEBAUTHN_ORIGINS must contain exact HTTPS origins (HTTP is allowed only for localhost).');
+        break;
+      }
+      if (url.hostname !== c.webauthnRpId && !url.hostname.endsWith(`.${c.webauthnRpId}`)) {
+        problems.push('Each WEBAUTHN_ORIGINS host must match WEBAUTHN_RP_ID or be its subdomain.');
+        break;
+      }
+    } catch {
+      problems.push('WEBAUTHN_ORIGINS must contain valid origins.');
+      break;
+    }
+  }
   return problems;
 }
 

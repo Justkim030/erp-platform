@@ -44,7 +44,16 @@ export class AuditService {
   }
 }
 
-export interface Member { id: string; staffNumber: string; fullName: string; role: string; status: string; supervisorId: string | null }
+export interface Member {
+  id: string;
+  staffNumber: string;
+  fullName: string;
+  role: string;
+  status: string;
+  supervisorId: string | null;
+  departmentId?: string | null;
+  jobTitle?: string | null;
+}
 
 /** Who is in the caller's team? Identity owns that data; we ask it using the caller's own token, so scope is enforced there. */
 export abstract class Roster { abstract members(user: AuthUser): Promise<Member[]> }

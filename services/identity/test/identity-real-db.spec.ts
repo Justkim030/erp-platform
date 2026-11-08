@@ -127,10 +127,12 @@ dd('real PostgreSQL: identity', () => {
     await api().post('/v1/departments').set('Authorization', `Bearer ${adminToken}`).send({ name: 'Production' }).expect(409);      // unique name
     // worker in department with supervisor
     const sup = await addUser(adminToken, { staffNumber: '0700', fullName: 'Sup S2', role: 'supervisor' }).expect(201);
+    await activate(slug, '0700', sup.body.activationCode, 'password', 'Supervisor-2026').expect(201);
     const w = await addUser(adminToken, { staffNumber: '0701', fullName: 'Worker S2', role: 'worker', supervisorId: sup.body.user.id, departmentId: dep.body.id }).expect(201);
     expect(w.body.user.departmentId).toBe(dep.body.id);
     // reassignment closes old assignment, opens new
     const sup2 = await addUser(adminToken, { staffNumber: '0702', fullName: 'Sup S2B', role: 'supervisor' }).expect(201);
+    await activate(slug, '0702', sup2.body.activationCode, 'password', 'Supervisor-2026B').expect(201);
     const re = await api().post(`/v1/workers/${w.body.user.id}/supervisor`).set('Authorization', `Bearer ${adminToken}`).send({ supervisorId: sup2.body.user.id, reason: 'restructure' }).expect(200);
     expect(re.body.changed).toBe(true);
     const hist = await api().get(`/v1/workers/${w.body.user.id}/assignments`).set('Authorization', `Bearer ${adminToken}`).expect(200);
@@ -195,9 +197,11 @@ dd('real PostgreSQL: identity', () => {
     const adminToken = await makeOrg(slug);
     const sup = await addUser(adminToken, { staffNumber: '0600', fullName: 'Sup One', role: 'supervisor' }).expect(201);
     const supToken = (await activate(slug, '0600', sup.body.activationCode, 'password', 'Supervisor-2026').expect(201)).body.accessToken;
+    const otherSup = await addUser(adminToken, { staffNumber: '0603', fullName: 'Sup Two', role: 'supervisor' }).expect(201);
+    await activate(slug, '0603', otherSup.body.activationCode, 'password', 'Supervisor-2026B').expect(201);
     // UI-created users link supervisors by id, not staff number
     await addUser(adminToken, { staffNumber: '0601', fullName: 'Their Worker', role: 'worker', supervisorId: sup.body.user.id }).expect(201);
-    await addUser(adminToken, { staffNumber: '0602', fullName: 'Other Worker', role: 'worker' }).expect(201);
+    await addUser(adminToken, { staffNumber: '0602', fullName: 'Other Worker', role: 'worker', supervisorId: otherSup.body.user.id }).expect(201);
     const mine = await api().get('/v1/users').set('Authorization', `Bearer ${supToken}`).expect(200);
     expect(mine.body.length).toBe(1);
     expect(mine.body[0].fullName).toBe('Their Worker');

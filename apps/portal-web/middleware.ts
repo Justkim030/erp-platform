@@ -3,15 +3,31 @@ import { NextRequest, NextResponse } from 'next/server';
 const IDENTITY_URL = process.env.IDENTITY_URL ?? 'http://localhost:3001';
 const PROTECTED = ['/home', '/history', '/profile', '/team', '/map', '/sites'];
 
+function configuredTileOrigin() {
+  const template = process.env.NEXT_PUBLIC_MAP_TILE_URL?.trim();
+  if (!template) return null;
+  let url: URL;
+  try {
+    url = new URL(template.replace(/\{(?:z|x|y|apiKey)\}/g, '0'));
+  } catch {
+    throw new Error('MAP_TILE_URL must be an absolute HTTPS tile template.');
+  }
+  if (url.protocol !== 'https:') throw new Error('MAP_TILE_URL must use HTTPS.');
+  return url.origin;
+}
+
 // CSP_MODE: "enforce" | "report-only" (default) | "off". Check the app in a real browser, then switch to "enforce".
 function csp(nonce: string) {
   const dev = process.env.NODE_ENV !== 'production';
+  const tileOrigins = new Set(['https://tile.openstreetmap.org', 'https://a.basemaps.cartocdn.com']);
+  const configuredOrigin = configuredTileOrigin();
+  if (configuredOrigin) tileOrigins.add(configuredOrigin);
   return [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ''}`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
-    "img-src 'self' data: blob: https://tile.openstreetmap.org",
+    `img-src 'self' data: blob: ${[...tileOrigins].join(' ')}`,
     "connect-src 'self'",
     "object-src 'none'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'none'",
   ].join('; ');

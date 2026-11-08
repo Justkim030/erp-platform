@@ -1,12 +1,13 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Put, Query, Req, ServiceUnavailableException, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { AdminService } from './admin.service';
 import { AuthService } from './auth.service';
 import { Db } from './db';
-import { ActivateDto, CreateUserDto, DepartmentDto, ForgotDto, LoginDto, PlatformOrgDto, PlatformUserDto, ReassignDto, RefreshDto, ResetDto, StatusChangeDto } from './dto';
+import { ActivateDto, ConsumePasskeyProofDto, CreateUserDto, DepartmentDto, ForgotDto, LoginDto, PlatformOrgDto, PlatformUserDto, ReassignDto, RefreshDto, ResetDto, StatusChangeDto, VerifyPasskeyAuthenticationDto, VerifyPasskeyRegistrationDto } from './dto';
 import { AuthUser, JwtGuard, PlatformGuard, Roles, RolesGuard } from './guards';
 import { TokenService } from './security';
+import { PasskeysService } from './passkeys.service';
 
 const AUTH_LIMIT = Number(process.env.AUTH_RATE_LIMIT ?? 10);
 const strict = Throttle({ default: { limit: AUTH_LIMIT, ttl: 60_000 } });
@@ -34,6 +35,40 @@ export class AuthController {
 
   @strict @Post('password/reset') @HttpCode(204)
   async reset(@Body() dto: ResetDto, @Req() req: Request) { await this.auth.reset(dto, ctxOf(req)); }
+}
+
+@Controller('v1/auth/passkeys')
+@UseGuards(JwtGuard, RolesGuard)
+@Roles('worker')
+export class PasskeysController {
+  constructor(private readonly passkeys: PasskeysService) {}
+
+  @strict @Get()
+  list(@Req() req: Request) { return this.passkeys.list(userOf(req)); }
+
+  @strict @Post('registration/options') @HttpCode(200)
+  registrationOptions(@Req() req: Request) { return this.passkeys.registrationOptions(userOf(req)); }
+
+  @strict @Post('registration/verify') @HttpCode(201)
+  verifyRegistration(@Body() dto: VerifyPasskeyRegistrationDto, @Req() req: Request) {
+    return this.passkeys.verifyRegistration(userOf(req), dto.requestId, dto.response, dto.name, ctxOf(req));
+  }
+
+  @strict @Post('clock/options') @HttpCode(200)
+  clockOptions(@Req() req: Request) { return this.passkeys.clockOptions(userOf(req)); }
+
+  @strict @Post('clock/verify') @HttpCode(200)
+  verifyClock(@Body() dto: VerifyPasskeyAuthenticationDto, @Req() req: Request) {
+    return this.passkeys.verifyClock(userOf(req), dto.requestId, dto.response, ctxOf(req));
+  }
+
+  @strict @Post('clock/consume') @HttpCode(200)
+  consumeClockProof(@Body() dto: ConsumePasskeyProofDto, @Req() req: Request) {
+    return this.passkeys.consumeClockProof(userOf(req), dto.proof, ctxOf(req));
+  }
+
+  @strict @Post(':id/remove') @HttpCode(204)
+  async remove(@Param('id') id: string, @Req() req: Request) { await this.passkeys.remove(userOf(req), id, ctxOf(req)); }
 }
 
 @Controller('v1')
@@ -98,6 +133,20 @@ export class SystemController {
 
   @Get('health')
   async health() { await this.db.query('SELECT 1'); return { status: 'ok' }; }
+
+  @Get('healthz')
+  healthz() { return { status: 'ok' }; }
+
+  @Get('readyz')
+  async readyz() {
+    try {
+      await this.db.query('SELECT 1');
+      if (!this.tokens.jwks().keys.length) throw new Error('Signing key is not available');
+      return { status: 'ready' };
+    } catch {
+      throw new ServiceUnavailableException('Identity service is not ready.');
+    }
+  }
 
   /** Other services verify access tokens with this public key; they never call Identity per request. */
   @Get('.well-known/jwks.json')

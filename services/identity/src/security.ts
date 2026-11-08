@@ -110,6 +110,27 @@ export class TokenService implements OnModuleInit {
       .sign(this.privateKey);
   }
 
+  signClockInProof(c: { sub: string; tid: string; jti: string }) {
+    return new SignJWT({ tid: c.tid, purpose: 'clock-in' })
+      .setProtectedHeader({ alg: 'EdDSA', kid: this.publicJwk.kid })
+      .setSubject(c.sub)
+      .setIssuer(this.cfg.issuer)
+      .setAudience('platform-clock-in')
+      .setIssuedAt()
+      .setJti(c.jti)
+      .setExpirationTime('90s')
+      .sign(this.privateKey);
+  }
+
+  async verifyClockInProof(token: string) {
+    const { payload } = await jwtVerify(token, this.publicKey, {
+      issuer: this.cfg.issuer,
+      audience: 'platform-clock-in',
+      algorithms: ['EdDSA'],
+    });
+    return payload as { sub: string; tid: string; purpose: string; jti: string };
+  }
+
   async verifyAccess(token: string) {
     const { payload } = await jwtVerify(token, this.publicKey, {
       issuer: this.cfg.issuer,

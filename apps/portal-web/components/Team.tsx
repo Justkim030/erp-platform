@@ -35,11 +35,19 @@ export function AddEmployee({ role, supervisors }: { role: Role; supervisors: U[
     const f = new FormData(e.currentTarget);
     const body: Record<string, unknown> = { staffNumber: String(f.get('staffNumber')).trim(), fullName: String(f.get('fullName')).trim(), role: newRole };
     if (f.get('phone')) body.phone = String(f.get('phone')).trim();
-    if (newRole === 'worker' && role !== 'supervisor' && f.get('supervisorId')) body.supervisorId = f.get('supervisorId');
+    const supervisorId = f.get('supervisorId');
+    if (newRole === 'worker' && role !== 'supervisor' && supervisors.length > 0 && !supervisorId) {
+      setBusy(false); setError('Choose an active supervisor for this worker.'); return;
+    }
+    if (newRole === 'worker' && role !== 'supervisor' && supervisorId) body.supervisorId = supervisorId;
     const res = await fetch('/api/svc/identity/v1/users', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
     const data = await res.json().catch(() => ({}));
     setBusy(false);
-    if (!res.ok) { setError(res.status === 409 ? 'A person with this staff number already exists.' : res.status === 403 ? 'You cannot add this kind of account.' : 'Please check the details and try again.'); return; }
+    if (!res.ok) {
+      const message = Array.isArray(data.message) ? data.message.join(' ') : data.message;
+      setError(res.status === 409 ? 'A person with this staff number already exists.' : res.status === 403 ? 'You cannot add this kind of account.' : typeof message === 'string' ? message : 'Please check the details and try again.');
+      return;
+    }
     setIssued({ name: body.fullName as string, code: data.activationCode, expiresAt: data.expiresAt });
     (e.target as HTMLFormElement).reset();
   }
@@ -55,7 +63,15 @@ export function AddEmployee({ role, supervisors }: { role: Role; supervisors: U[
         <label>Phone number (optional)<input name="phone" type="tel" /></label>
         {options.length > 1 && <label>Role<select value={newRole} onChange={(e) => setNewRole(e.target.value as Role)}>{options.map((r) => <option key={r} value={r}>{r[0].toUpperCase() + r.slice(1)}</option>)}</select></label>}
         {newRole === 'worker' && role !== 'supervisor' && supervisors.length > 0 && (
-          <label>Supervisor<select name="supervisorId" defaultValue=""><option value="">Not assigned yet</option>{supervisors.map((s) => <option key={s.id} value={s.id}>{s.fullName}</option>)}</select></label>
+          <label>Supervisor
+            <select name="supervisorId" defaultValue={supervisors.length === 1 ? supervisors[0].id : ''} required>
+              <option value="" disabled>Choose an active supervisor</option>
+              {supervisors.map((s) => <option key={s.id} value={s.id}>{s.fullName}</option>)}
+            </select>
+          </label>
+        )}
+        {newRole === 'worker' && role !== 'supervisor' && supervisors.length === 0 && (
+          <p className="mini">No active supervisor is available. You can add this worker now and assign them after creating a supervisor.</p>
         )}
         <button className="btn" disabled={busy}>{busy ? 'Adding…' : 'Add employee'}</button>
         <p className="mini">The employee sets their own PIN or password the first time they log in. Nobody else ever knows it.</p>
@@ -65,11 +81,12 @@ export function AddEmployee({ role, supervisors }: { role: Role; supervisors: U[
   );
 }
 
-export function TeamList({ users, canReset }: { users: U[]; canReset: boolean }) {
+export function TeamList({ users, canReset, canAssign, supervisors }: { users: U[]; canReset: boolean; canAssign: boolean; supervisors: U[] }) {
   const router = useRouter();
   const [issued, setIssued] = useState<Issued | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [assignment, setAssignment] = useState<Record<string, string>>({});
 
   async function reset(u: U) {
     if (!confirm(`Reset access for ${u.fullName}? Their current PIN or password stops working and they will need a new code.`)) return;
@@ -79,6 +96,27 @@ export function TeamList({ users, canReset }: { users: U[]; canReset: boolean })
     setBusy(null);
     if (!res.ok) { setError('Access could not be reset for this person.'); return; }
     setIssued({ name: u.fullName, code: data.activationCode, expiresAt: data.expiresAt });
+    router.refresh();
+  }
+
+  async function assign(u: U) {
+    const supervisorId = assignment[u.id] ?? u.supervisorId ?? '';
+    const supervisor = supervisors.find((s) => s.id === supervisorId);
+    if (!supervisor) { setError('Choose an active supervisor before assigning this worker.'); return; }
+    if (supervisorId === u.supervisorId) return;
+    if (!confirm(`Assign ${u.fullName} to ${supervisor.fullName}? This change will be recorded in the assignment history.`)) return;
+    setBusy(u.id); setError('');
+    const res = await fetch(`/api/svc/identity/v1/workers/${u.id}/supervisor`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ supervisorId, reason: 'Assigned by management through the team page' }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setBusy(null);
+    if (!res.ok) {
+      setError(typeof data.message === 'string' ? data.message : 'The worker could not be assigned. Please try again.');
+      return;
+    }
     router.refresh();
   }
 
@@ -92,6 +130,23 @@ export function TeamList({ users, canReset }: { users: U[]; canReset: boolean })
           <div className="li" key={u.id}>
             <span>{u.fullName}<small>{u.staffNumber} · {u.role}</small></span>
             <span className="actions" style={{ alignItems: 'center' }}>
+              {canAssign && u.role === 'worker' && supervisors.length > 0 && (
+                <>
+                  <select
+                    aria-label={`Supervisor for ${u.fullName}`}
+                    value={assignment[u.id] ?? u.supervisorId ?? ''}
+                    onChange={(e) => setAssignment((current) => ({ ...current, [u.id]: e.target.value }))}
+                    disabled={busy === u.id}
+                  >
+                    <option value="" disabled>Choose supervisor</option>
+                    {u.supervisorId && !supervisors.some((s) => s.id === u.supervisorId) && <option value={u.supervisorId} disabled>Former or inactive supervisor</option>}
+                    {supervisors.map((s) => <option key={s.id} value={s.id}>{s.fullName}</option>)}
+                  </select>
+                  <button className="link" disabled={busy === u.id || (assignment[u.id] ?? u.supervisorId) === u.supervisorId} onClick={() => assign(u)}>
+                    {busy === u.id ? 'Saving…' : u.supervisorId ? 'Reassign' : 'Assign'}
+                  </button>
+                </>
+              )}
               <span className={`chip ${u.status === 'active' ? 'ok' : 'wn'}`}>{u.status === 'active' ? 'Active' : 'Awaiting setup'}</span>
               {canReset && <button className="link" disabled={busy === u.id} onClick={() => reset(u)}>{u.status === 'active' ? 'Reset access' : 'New code'}</button>}
             </span>

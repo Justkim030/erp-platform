@@ -94,4 +94,7 @@ textarea:focus,select:focus{outline:2px solid var(--acc);outline-offset:1px}
 .mini{font-size:12px;color:var(--mut);font-weight:500;margin-top:4px;line-height:1.4}
 .daynav{display:flex;align-items:center;gap:10px}
 .daynav a{padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;text-decoration:none;font-size:13px}
+.activity-editor{display:flex;flex-direction:column;gap:10px;padding:12px 0;border-bottom:1px solid var(--line)}
+.date-filter{display:flex;align-items:end;gap:10px;flex-wrap:wrap}
+.date-filter label{flex:1;min-width:140px}
 @media(min-width:901px){.mapbox{height:520px}}

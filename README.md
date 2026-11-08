@@ -101,7 +101,8 @@ npm run build
 ## Known gaps and next steps
 
 1. Real PostgreSQL in CI; run the Docker stack; browser and device testing.
-2. Passkeys (registered phone) in Identity, as a second factor for clock-in.
-3. Notifications service (email, SMS) and events between services (RabbitMQ), replacing the team-directory call from Attendance to Identity.
-4. Missing clock-out corrections, user deactivation, shifts per employee, reports and exports.
-5. Redis-backed rate limiting before running more than one instance of a service.
+2. Notifications service (email, SMS) and events between services (RabbitMQ), replacing the team-directory call from Attendance to Identity.
+3. Missing clock-out corrections, user deactivation, shifts per employee, reports and exports.
+4. Redis-backed rate limiting before running more than one instance of a service.
+
+Workers can register passkeys in Profile. Once enrolled, a passkey is required to confirm each clock-in; PIN/password login remains available. Configure `WEBAUTHN_RP_ID` and `WEBAUTHN_ORIGINS` for the portal's real HTTPS host before production use.

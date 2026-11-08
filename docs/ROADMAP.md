@@ -6,21 +6,21 @@
 
 | ID  | Item                                                                                    | Where                                                      | Effort |
 | --- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------- | ------ |
-| B-1 | Sanitise `x-forwarded-for` in the BFF proxy so the staff-network check can't be spoofed | `apps/portal-web/app/api/svc/[service]/[...path]/route.ts` | 1 h    |
-| B-2 | Global exception filter returning JSON + correlation id on every error                  | both services' `setup.ts`                                  | 2 h    |
+| B-1 | ✅ Done: use only the trusted Next.js request IP; never forward a browser-supplied forwarding header | `apps/portal-web/app/api/svc/[service]/[...path]/route.ts` | — |
+| B-2 | ✅ Done: global exception filter returns JSON with a correlation id and logs 5xx failures | both services' `setup.ts` | — |
 | B-3 | ✅ Done: private repo **Justkim030/erp-platform**, baseline pushed, `git ls-files` audit clean, repo-local identity pinned to Justkim030 | repo root | — |
-| B-4 | Require strong `PLATFORM_BOOTSTRAP_TOKEN` in `validateProductionConfig`                 | both `config.ts`                                           | 30 min |
-| B-5 | Health endpoints (`/healthz`, `/readyz`) + compose healthchecks                         | services + `docker-compose.yml`                            | 2 h    |
+| B-4 | ✅ Done: Identity rejects a missing or under-32-byte `PLATFORM_BOOTSTRAP_TOKEN` in production | `services/identity/src/config.ts` | — |
+| B-5 | ✅ Done: liveness/readiness endpoints and Compose healthchecks; readiness checks DB and Identity JWKS | services + `docker-compose.yml` | — |
 
 ## 🟡 Next 30 days
 
 | ID  | Item                                               | Notes                                                                    |
 | --- | -------------------------------------------------- | ------------------------------------------------------------------------ |
-| N-1 | Rate limiting on portal auth routes                | in-memory token bucket; revisit when scaling horizontally (needs Redis)  |
+| N-1 | ✅ Done | Identity auth routes use in-memory throttling; revisit when scaling horizontally (needs Redis) |
 | N-2 | Remove dev-memory demo path from production builds | ✅ Done: seeding is opt-in via `DEV_SEED_ORG=1`, the demo password was deleted, `DEFAULT_ORG` has no fallback |
 | N-3 | Integration test for the BFF proxy                 | spin up a stub upstream, assert allow-list, refresh, and header handling |
 | N-4 | Per-service e2e smoke test in CI                   | run `docker compose up`, hit `/readyz` and one happy-path flow           |
-| N-5 | Refresh-token rotation detection                   | store token family hashes; revoke family on reuse                        |
+| N-5 | ✅ Done: refresh-token family hashes are rotated and revoked on reuse |
 | N-6 | Audit-log retention & export job                   | mirror the attendance retention pattern for `audit_log`                  |
 
 ## 🟢 Later

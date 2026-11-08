@@ -24,60 +24,30 @@ Follow these steps **in order**. Tick each box as you complete it. Companion doc
 
 ## Phase 1 — Code fixes
 
-### 1.1 Global exception filter (both services)
+### 1.1 Global exception filter (both services) — ✅ implemented
 
-- [ ] Create `services/identity/src/http-exception.filter.ts` and the same file for attendance:
+- [x] Both services return JSON errors with the request correlation id; 5xx failures are logged with that id.
+- [x] Identity and attendance tests cover correlated error responses.
 
-```ts
-import {
-  ArgumentsHost,
-  Catch,
-  ExceptionFilter,
-  HttpException,
-  HttpStatus,
-} from "@nestjs/common";
+### 1.2 Strong production bootstrap token — ✅ implemented
 
-@Catch()
-export class AllExceptionsFilter implements ExceptionFilter {
-  catch(e: unknown, host: ArgumentsHost) {
-    const res = host.switchToHttp().getResponse();
-    const status =
-      e instanceof HttpException
-        ? e.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
-    const message =
-      e instanceof HttpException ? e.message : "Internal server error.";
-    // TODO: read correlation id from the request and include it here + log it
-    res.status(status).json({ statusCode: status, message });
-  }
-}
-```
+- [x] Identity requires `PLATFORM_BOOTSTRAP_TOKEN` to be set and at least 32 bytes. Attendance does not use this platform-owner credential.
+- [x] Tests cover missing and short tokens.
 
-- [ ] Register in both `setup.ts`: `app.useGlobalFilters(new AllExceptionsFilter());`
-- [ ] `npm run test -w @platform/identity && npm run test -w @platform/attendance` still pass.
+### 1.3 Sanitised BFF client IP — ✅ implemented
 
-### 1.2 Strengthen production config validation
-
-- [ ] In both `src/config.ts`, extend `validateProductionConfig`:
-  - `PLATFORM_BOOTSTRAP_TOKEN` must be set and ≥ 32 chars.
-  - `COOKIE_SECURE` note: portal only — check `.env` of the portal, not the service.
-- [ ] Add a unit test asserting startup is blocked when the token is short.
-
-### 1.3 Sanitise the BFF's forwarded IP (HIGH priority)
-
-- [ ] In `apps/portal-web/app/api/svc/[service]/[...path]/route.ts` line ~33: do not pass the browser-supplied `x-forwarded-for` through unchanged. Either drop it, or set it to the portal's own knowledge of the client address. Otherwise a worker can spoof the staff-network check for clock-in.
-- [ ] Confirm the attendance service trusts exactly 1 proxy (`TRUST_PROXY=1`) so it reads the _last_ hop, not the first.
+- [x] The BFF ignores browser-provided `x-forwarded-for` and forwards only a validated IP supplied by the trusted Next.js adapter. Without such an IP, it forwards none.
+- [x] Confirm the deployed proxy and `TRUST_PROXY` hop count before enabling attendance network rules.
 
 ### 1.4 Rate-limit portal auth routes
 
 - [ ] Add a small token-bucket helper `apps/portal-web/lib/rate-limit.ts` keyed on IP for `/api/auth/login`, `/activate`, and the svc proxy.
 - [ ] Return 429 with the same friendly message the frontend already handles.
 
-### 1.5 Health endpoints + compose healthchecks
+### 1.5 Health endpoints + compose healthchecks — ✅ implemented
 
-- [ ] Add `GET /healthz` (always 200) and `GET /readyz` (checks DB query + JWKS availability) to identity and attendance.
-- [ ] Add `healthcheck:` blocks to the `identity`, `attendance`, and `portal` services in `docker-compose.yml` mirroring the postgres one.
-- [ ] Change attendance's `depends_on` for identity to `condition: service_healthy`.
+- [x] Identity and attendance expose `/healthz` and `/readyz`; readiness checks DB and Identity JWKS availability.
+- [x] Compose healthchecks cover identity, attendance, and portal; Attendance waits for healthy Identity.
 
 ## Phase 2 — Environment configuration
 
@@ -87,6 +57,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
 - [ ] Generate a strong `POSTGRES_PASSWORD` (not `platform`).
 - [ ] `PLATFORM_ALLOWED_IPS` = the operator's office/VPN IP.
 - [ ] `COOKIE_SECURE=true` and `CSP_MODE=enforce` once the site is behind HTTPS.
+- [ ] Set `MAP_TILE_URL` to an HTTPS tile provider authorized for the app. `MAP_TILE_API_KEY` is sent to browsers, so restrict it by domain; include provider and OpenStreetMap attribution in `MAP_TILE_ATTRIBUTION`.
+- [ ] Set `WEBAUTHN_RP_ID` to the portal's registrable domain and `WEBAUTHN_ORIGINS` to its exact HTTPS origin(s); never use the localhost defaults for production.
 - [ ] Set `TRUST_PROXY` to the real number of proxies (portal-only = 1; reverse proxy + portal = 2).
 - [ ] `.env` must never be committed — verify with `git status`.
 

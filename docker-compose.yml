@@ -24,10 +24,19 @@ services:
       SIGNING_KEY_JWK: ${SIGNING_KEY_JWK:?Run "npm run gen-key -w @platform/identity" and put the result in .env}
       PLATFORM_BOOTSTRAP_TOKEN: ${PLATFORM_BOOTSTRAP_TOKEN:?Set a long random value in .env}
       PLATFORM_ALLOWED_IPS: ${PLATFORM_ALLOWED_IPS:-}
+      WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID:-localhost}
+      WEBAUTHN_RP_NAME: ${WEBAUTHN_RP_NAME:-ERP Platform}
+      WEBAUTHN_ORIGINS: ${WEBAUTHN_ORIGINS:-http://localhost:3000}
       CORS_ORIGINS: http://localhost:3000
       TRUST_PROXY: ${TRUST_PROXY:-1}
     depends_on: { postgres: { condition: service_healthy } }
     ports: ["127.0.0.1:3001:3001"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   attendance:
     build: { context: ., dockerfile: services/attendance/Dockerfile }
@@ -39,19 +48,38 @@ services:
       CORS_ORIGINS: http://localhost:3000
       TRUST_PROXY: ${TRUST_PROXY:-1}   # number of proxies in front of this service: 1 = the portal, 2 = a reverse proxy plus the portal
       RETENTION_DAYS: ${RETENTION_DAYS:-90}
-    depends_on: { postgres: { condition: service_healthy }, identity: { condition: service_started } }
+    depends_on: { postgres: { condition: service_healthy }, identity: { condition: service_healthy } }
     ports: ["127.0.0.1:3002:3002"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3002/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   portal:
-    build: { context: ., dockerfile: apps/portal-web/Dockerfile }
+    build:
+      context: .
+      dockerfile: apps/portal-web/Dockerfile
+      args:
+        NEXT_PUBLIC_MAP_TILE_URL: ${MAP_TILE_URL:-}
+        NEXT_PUBLIC_MAP_TILE_API_KEY: ${MAP_TILE_API_KEY:-}
+        NEXT_PUBLIC_MAP_TILE_ATTRIBUTION: ${MAP_TILE_ATTRIBUTION:-}
     environment:
+      HOSTNAME: 0.0.0.0
       IDENTITY_URL: http://identity:3001
       ATTENDANCE_URL: http://attendance:3002
       DEFAULT_ORG: ${DEFAULT_ORG:?Set the organisation slug in .env}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}   # set to true behind HTTPS
       CSP_MODE: ${CSP_MODE:-report-only}       # switch to "enforce" after checking in a real browser
-    depends_on: [identity, attendance]
+    depends_on: { identity: { condition: service_healthy }, attendance: { condition: service_healthy } }
     ports: ["3000:3000"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
 volumes:
   pgdata:

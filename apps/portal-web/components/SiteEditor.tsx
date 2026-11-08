@@ -35,9 +35,18 @@ export function SiteEditor({ sites }: { sites: Site[] }) {
     };
     const res = await fetch(`/api/svc/attendance/v1/sites${editing ? `/${editing}` : ''}`, { method: editing ? 'PUT' : 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
     setBusy(false);
-    if (!res.ok) { setMsg({ ok: false, text: 'The site could not be saved. Check the name, radius (20 to 5000 m), shift time and IP addresses.' }); return; }
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      const message = typeof data.message === 'string'
+        ? data.message
+        : Array.isArray(data.message)
+          ? data.message.filter((item: unknown): item is string => typeof item === 'string').join(' ')
+          : '';
+      setMsg({ ok: false, text: message || 'The site could not be saved. Check the site location and required fields, then try again.' });
+      return;
+    }
     setMsg({ ok: true, text: 'Site saved.' });
-    if (!editing) edit();
+    if (!editing) { setEditing(''); setF(blank); setPos(null); }
     router.refresh();
   }
   const set = (k: keyof typeof blank) => (e: any) => setF({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value });
@@ -63,7 +72,7 @@ export function SiteEditor({ sites }: { sites: Site[] }) {
         <label>Acceptable location accuracy (metres)<input type="number" min={10} max={1000} value={f.accuracyLimitM} onChange={set('accuracyLimitM')} /></label>
         <label>Staff network public IP addresses (optional, comma separated)<input value={f.allowedIps} onChange={set('allowedIps')} placeholder="41.90.12.34, 196.201.0.0/24" /></label>
         <label style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}><input style={{ width: 20, height: 20 }} type="checkbox" checked={f.requireNetwork} onChange={set('requireNetwork')} />Require the staff network to clock in</label>
-        <p className="mini">With the network required, anyone on a different connection is declined, so confirm the address with your internet provider first. Without it, a different network only sends the entry for review.</p>
+        <p className="mini">Leave IP addresses blank for no network restriction. If you enter addresses, enabling the network requirement declines clock-ins from other connections; otherwise mismatches are sent for review.</p>
         <div className="actions"><button className="btn" style={{ width: 'auto', padding: '0 24px' }} disabled={busy}>{busy ? 'Saving…' : 'Save site'}</button>{editing && <button type="button" className="btn alt" style={{ width: 'auto', padding: '0 24px' }} onClick={() => edit()}>New site</button>}</div>
       </form>
     </div>

@@ -50,7 +50,7 @@ beforeAll(async () => {
 afterAll(async () => { await app.close(); });
 
 describe('stage 2: departments', () => {
-  let admin: string, mgmt: string, sup: string, org: string;
+  let admin: string, mgmt: string, sup: string, supId: string, org: string;
   beforeAll(async () => {
     org = `dept-org-${uid}`;
     admin = await makeOrg(org);
@@ -58,6 +58,7 @@ describe('stage 2: departments', () => {
     const m = await addUser(admin, { staffNumber: '0901', fullName: 'Manager One', role: 'management' }).expect(201);
     mgmt = (await activate(org, '0901', m.body.activationCode, 'password', 'Manager-2026-ok').expect(201)).body.accessToken;
     const s = await addUser(admin, { staffNumber: '0902', fullName: 'Sup One', role: 'supervisor' }).expect(201);
+    supId = s.body.user.id;
     sup = (await activate(org, '0902', s.body.activationCode, 'password', 'Supervisor-2026').expect(201)).body.accessToken;
   });
 
@@ -78,9 +79,9 @@ describe('stage 2: departments', () => {
   it('worker creation can reference a department; unknown department is 404', async () => {
     const depts = await api().get('/v1/departments').set('Authorization', `Bearer ${mgmt}`).expect(200);
     const prodId = depts.body[0].id;
-    const w = await addUser(mgmt, { staffNumber: '0910', fullName: 'Dept Worker', role: 'worker', departmentId: prodId }).expect(201);
+    const w = await addUser(mgmt, { staffNumber: '0910', fullName: 'Dept Worker', role: 'worker', supervisorId: supId, departmentId: prodId }).expect(201);
     expect(w.body.user.departmentId).toBe(prodId);
-    await addUser(mgmt, { staffNumber: '0911', fullName: 'Bad Dept', role: 'worker', departmentId: 'nonexistent000' }).expect(404);
+    await addUser(mgmt, { staffNumber: '0911', fullName: 'Bad Dept', role: 'worker', supervisorId: supId, departmentId: 'nonexistent000' }).expect(404);
   });
 
   // NOTE: soft-deactivation persistence is verified in the real-DB suite

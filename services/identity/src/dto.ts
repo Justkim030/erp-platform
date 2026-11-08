@@ -1,4 +1,5 @@
-import { IsEmail, IsIn, IsOptional, IsString, Length, Matches, MaxLength } from 'class-validator';
+import { IsEmail, IsIn, IsObject, IsOptional, IsString, Length, Matches, MaxLength } from 'class-validator';
+import type { AuthenticationResponseJSON, RegistrationResponseJSON } from '@simplewebauthn/server';
 import { ROLES, Role } from './security';
 
 const SLUG = /^[a-z0-9][a-z0-9-]{1,30}$/;
@@ -25,6 +26,18 @@ export class ForgotDto {
 export class ResetDto {
   @IsString() @Length(20, 200) token: string;
   @IsString() @MaxLength(128) newPassword: string;
+}
+export class VerifyPasskeyRegistrationDto {
+  @IsString() @Length(36, 36) requestId: string;
+  @IsObject() response: RegistrationResponseJSON;
+  @IsOptional() @IsString() @Length(2, 60) name?: string;
+}
+export class VerifyPasskeyAuthenticationDto {
+  @IsString() @Length(36, 36) requestId: string;
+  @IsObject() response: AuthenticationResponseJSON;
+}
+export class ConsumePasskeyProofDto {
+  @IsOptional() @IsString() @MaxLength(4096) proof?: string;
 }
 export class CreateUserDto {
   @IsString() @Length(1, 32) staffNumber: string;

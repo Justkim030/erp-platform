@@ -6,6 +6,12 @@ COPY services/attendance/package.json services/attendance/
 COPY apps/portal-web/package.json apps/portal-web/
 RUN npm ci
 COPY apps/portal-web apps/portal-web
+ARG NEXT_PUBLIC_MAP_TILE_URL
+ARG NEXT_PUBLIC_MAP_TILE_API_KEY
+ARG NEXT_PUBLIC_MAP_TILE_ATTRIBUTION
+ENV NEXT_PUBLIC_MAP_TILE_URL=$NEXT_PUBLIC_MAP_TILE_URL \
+    NEXT_PUBLIC_MAP_TILE_API_KEY=$NEXT_PUBLIC_MAP_TILE_API_KEY \
+    NEXT_PUBLIC_MAP_TILE_ATTRIBUTION=$NEXT_PUBLIC_MAP_TILE_ATTRIBUTION
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build -w @platform/portal-web
 

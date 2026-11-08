@@ -11,7 +11,7 @@ import { randomUUID } from 'crypto';
  */
 export function correlationIdOf(req: Request): string {
   const incoming = req.headers['x-correlation-id'];
-  return typeof incoming === 'string' && incoming.length >= 8 && incoming.length <= 128
+  return typeof incoming === 'string' && /^[A-Za-z0-9._:-]{8,128}$/.test(incoming)
     ? incoming
     : randomUUID();
 }

@@ -3,7 +3,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { dateOf, reasonText, timeOf } from '@/lib/labels';
 
-export type ReviewItem = { id: string; kind: 'in' | 'out'; at: string; fullName?: string; staffNumber?: string; reasons: string[]; workSummary?: string | null; distanceM?: number | null };
+export type ReviewItem = { id: string; sessionId?: string | null; kind: 'in' | 'out'; at: string; fullName?: string; staffNumber?: string; reasons: string[]; workSummary?: string | null; distanceM?: number | null };
 
 export function ReviewList({ items }: { items: ReviewItem[] }) {
   const router = useRouter();
@@ -15,6 +15,19 @@ export function ReviewList({ items }: { items: ReviewItem[] }) {
     const res = await fetch(`/api/svc/attendance/v1/attendance/events/${id}/review`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ decision }) });
     setBusy(null);
     if (!res.ok) { setError('That entry could not be updated. Refresh and try again.'); return; }
+    router.refresh();
+  }
+
+  async function verify(item: ReviewItem, outcome: 'confirmed' | 'not_found') {
+    if (!item.sessionId) { setError('This entry has no attendance session for a physical check.'); return; }
+    setBusy(item.id); setError('');
+    const res = await fetch(`/api/svc/attendance/v1/attendance/sessions/${item.sessionId}/verifications`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ eventId: item.id, outcome }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setBusy(null);
+    if (!res.ok) { setError(typeof data.message === 'string' ? data.message : 'The physical verification could not be recorded.'); return; }
     router.refresh();
   }
 
@@ -33,6 +46,10 @@ export function ReviewList({ items }: { items: ReviewItem[] }) {
           <span className="actions">
             <button className="btn sm" disabled={busy === e.id} onClick={() => decide(e.id, 'approved')}>Approve</button>
             <button className="btn sm alt" disabled={busy === e.id} onClick={() => decide(e.id, 'declined')}>Decline</button>
+            {e.sessionId && <>
+              <button className="btn sm alt" disabled={busy === e.id} onClick={() => verify(e, 'confirmed')}>Verify in person</button>
+              <button className="btn sm alt" disabled={busy === e.id} onClick={() => verify(e, 'not_found')}>Not found</button>
+            </>}
           </span>
         </div>
       ))}

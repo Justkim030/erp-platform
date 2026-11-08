@@ -7,7 +7,7 @@ export default async function NewEmployeePage() {
   return (
     <div className="stack">
       <div><p className="eb">Add to your team</p><h1 className="h">New employee</h1></div>
-      <AddEmployee role={user.role} supervisors={users.filter((u) => u.role === 'supervisor')} />
+      <AddEmployee role={user.role} supervisors={users.filter((u) => u.role === 'supervisor' && u.status === 'active')} />
     </div>
   );
 }
