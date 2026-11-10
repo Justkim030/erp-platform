@@ -7,7 +7,7 @@
     "name": "JUSTKIM",
     "role": "Developer & Maintainer"
   },
-  "workspaces": ["services/*", "apps/*"],
+  "workspaces": ["backend/*", "frontend/*"],
   "scripts": {
     "test": "npm run test -w @platform/identity && npm run test -w @platform/attendance",
     "test:pg": "npm run test:pg -w @platform/identity && npm run test:pg -w @platform/attendance",

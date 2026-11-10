@@ -17,7 +17,7 @@ services:
       retries: 10
 
   identity:
-    build: { context: ., dockerfile: services/identity/Dockerfile }
+    build: { context: ., dockerfile: backend/identity/Dockerfile }
     environment:
       NODE_ENV: production
       DATABASE_URL: postgres://platform:${POSTGRES_PASSWORD:-platform}@postgres:5432/identity
@@ -39,7 +39,7 @@ services:
       start_period: 30s
 
   attendance:
-    build: { context: ., dockerfile: services/attendance/Dockerfile }
+    build: { context: ., dockerfile: backend/attendance/Dockerfile }
     environment:
       NODE_ENV: production
       DATABASE_URL: postgres://platform:${POSTGRES_PASSWORD:-platform}@postgres:5432/attendance
@@ -61,7 +61,7 @@ services:
   portal:
     build:
       context: .
-      dockerfile: apps/portal-web/Dockerfile
+      dockerfile: frontend/portal-web/Dockerfile
       args:
         NEXT_PUBLIC_MAP_TILE_URL: ${MAP_TILE_URL:-}
         NEXT_PUBLIC_MAP_TILE_API_KEY: ${MAP_TILE_API_KEY:-}
