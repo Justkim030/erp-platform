@@ -48,6 +48,7 @@ services:
       CORS_ORIGINS: http://localhost:3000
       TRUST_PROXY: ${TRUST_PROXY:-1}   # number of proxies in front of this service: 1 = the portal, 2 = a reverse proxy plus the portal
       RETENTION_DAYS: ${RETENTION_DAYS:-90}
+      TIMEZONE: ${TIMEZONE:-Africa/Nairobi}
     depends_on: { postgres: { condition: service_healthy }, identity: { condition: service_healthy } }
     ports: ["127.0.0.1:3002:3002"]
     healthcheck:

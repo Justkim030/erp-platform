@@ -3,7 +3,7 @@ import { AuthUser } from './auth';
 import { AppConfig, CONFIG } from './config';
 import { Db, Q } from './db';
 import { ClockInDto, ClockOutDto, CreateExceptionDto, OverrideExceptionDto, PhysicalVerificationDto, ReviewDto, ReviewExceptionDto, SiteDto } from './dto';
-import { AuditService, Member, Roster, newId } from './support';
+import { AuditService, Member, Roster, dayRangeInTz, newId, todayInTz } from './support';
 import { ClockPasskeyVerifier } from './passkeys';
 import { SiteRow, clockTime, evaluate, isLate, workerMessage } from './verification';
 
@@ -230,11 +230,10 @@ export class AttendanceService implements OnModuleInit {
   }
 
   // ---------- supervisor and management
-  private today() { return new Date(Date.now() + this.cfg.tzOffsetMinutes * 60_000).toISOString().slice(0, 10); }
+  private today() { return todayInTz(this.cfg.timezone); }
   private dayRange(day: string): [Date, Date] {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || Number.isNaN(Date.parse(day))) throw new BadRequestException('Date must look like 2026-10-16.');
-    const start = Date.parse(`${day}T00:00:00Z`) - this.cfg.tzOffsetMinutes * 60_000;
-    return [new Date(start), new Date(start + 86_400_000)];
+    return dayRangeInTz(this.cfg.timezone, day);
   }
   private async teamEvents(user: AuthUser, from: Date, to: Date, extra = '') {
     const members = (await this.roster.members(user)).filter((m) => m.status === 'active');
@@ -324,7 +323,15 @@ export class AttendanceService implements OnModuleInit {
             `SELECT occurred_at FROM attendance_events WHERE session_id=$1 AND kind='out' AND outcome <> 'declined'
              AND (review_decision IS NULL OR review_decision <> 'declined') ORDER BY occurred_at DESC LIMIT 1`, [e.session_id]))[0];
           if (out) await q(`UPDATE attendance_sessions SET status='closed', ended_at=$2 WHERE id=$1`, [e.session_id, out.occurred_at]);
-          else await q(`UPDATE attendance_sessions SET status='open', ended_at=NULL WHERE id=$1`, [e.session_id]);
+          else {
+            // Reopen the session only when the worker has not already started a newer
+            // one: the one-open-session rule (partial unique index) must never be
+            // violated, and the newer session is the authoritative one.
+            const newer = (await q(
+              `SELECT id FROM attendance_sessions WHERE tenant_id=$1 AND user_id=$2 AND status='open' AND id <> $3`,
+              [user.tid, e.user_id, e.session_id]))[0];
+            if (!newer) await q(`UPDATE attendance_sessions SET status='open', ended_at=NULL WHERE id=$1`, [e.session_id]);
+          }
         }
       }
       await this.audit.recordWithinTx(q, {
@@ -466,10 +473,15 @@ export class AttendanceService implements OnModuleInit {
     if (occurredAt.getTime() > Date.now() + 5 * 60_000) throw new BadRequestException('The reported time cannot be in the future.');
     if (e.exception_type === 'missed_clock_out') {
       const session = (await q(
-        `SELECT * FROM attendance_sessions WHERE id=$1 AND tenant_id=$2 AND user_id=$3 AND status='open'`,
+        `SELECT * FROM attendance_sessions WHERE id=$1 AND tenant_id=$2 AND user_id=$3`,
         [e.session_id, reviewer.tid, e.worker_id]))[0];
-      if (!session) throw new ConflictException('The attendance session is no longer open.');
+      if (!session) throw new ConflictException('The attendance session is no longer available.');
       if (occurredAt < new Date(session.started_at)) throw new BadRequestException('The reported clock-out must be after the clock-in.');
+      if (session.status !== 'open') {
+        // The worker clocked out (or the session was resolved) after raising the request.
+        // Refuse honestly instead of touching a session that is already closed.
+        throw new ConflictException('The attendance session is no longer open.');
+      }
       const eventId = newId();
       await q(
         `INSERT INTO attendance_events (id,tenant_id,user_id,site_id,kind,occurred_at,outcome,reasons,work_summary,reviewed_by,reviewed_at,review_decision,review_note,session_id)
@@ -485,6 +497,10 @@ export class AttendanceService implements OnModuleInit {
        AND outcome <> 'declined' AND (review_decision IS NULL OR review_decision <> 'declined')
        ORDER BY occurred_at, id LIMIT 1`, [reviewer.tid, e.worker_id, occurredAt]))[0];
     if (later?.kind === 'in') throw new ConflictException('A clock-in already exists at or after the reported time.');
+    const openSession = (await q(
+      `SELECT id FROM attendance_sessions WHERE tenant_id=$1 AND user_id=$2 AND status='open'`,
+      [reviewer.tid, e.worker_id]))[0];
+    if (openSession) throw new ConflictException('The worker already has an open attendance session.');
     const sessionId = newId();
     const eventId = newId();
     const matchingOut = later?.kind === 'out' && !later.session_id ? later : null;

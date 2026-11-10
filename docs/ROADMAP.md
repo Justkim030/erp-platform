@@ -16,7 +16,7 @@
 
 | ID  | Item                                               | Notes                                                                    |
 | --- | -------------------------------------------------- | ------------------------------------------------------------------------ |
-| N-1 | ✅ Done | Identity auth routes use in-memory throttling; revisit when scaling horizontally (needs Redis) |
+| N-1 | ✅ Done | Throttling at three layers: Identity auth routes (10/min), Attendance clock routes (20/min), and the portal's own auth routes (in-memory token bucket, `apps/portal-web/lib/rate-limit.ts`). Revisit all three for Redis when scaling horizontally |
 | N-2 | Remove dev-memory demo path from production builds | ✅ Done: seeding is opt-in via `DEV_SEED_ORG=1`, the demo password was deleted, `DEFAULT_ORG` has no fallback |
 | N-3 | Integration test for the BFF proxy                 | spin up a stub upstream, assert allow-list, refresh, and header handling |
 | N-4 | Per-service e2e smoke test in CI                   | run `docker compose up`, hit `/readyz` and one happy-path flow           |

@@ -39,10 +39,11 @@ Follow these steps **in order**. Tick each box as you complete it. Companion doc
 - [x] The BFF ignores browser-provided `x-forwarded-for` and forwards only a validated IP supplied by the trusted Next.js adapter. Without such an IP, it forwards none.
 - [x] Confirm the deployed proxy and `TRUST_PROXY` hop count before enabling attendance network rules.
 
-### 1.4 Rate-limit portal auth routes
+### 1.4 Rate-limit portal auth routes — ✅ implemented
 
-- [ ] Add a small token-bucket helper `apps/portal-web/lib/rate-limit.ts` keyed on IP for `/api/auth/login`, `/activate`, and the svc proxy.
-- [ ] Return 429 with the same friendly message the frontend already handles.
+- [x] `apps/portal-web/lib/rate-limit.ts`: in-memory token bucket keyed on IP for `/api/auth/login` and `/api/auth/activate` (10 attempts / 5 minutes).
+- [x] Returns 429 with the same friendly message the frontend already handles.
+- [x] Per-instance only: switch to a shared store (Redis) before running more than one portal instance.
 
 ### 1.5 Health endpoints + compose healthchecks — ✅ implemented
 

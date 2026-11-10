@@ -12,7 +12,7 @@ export const config = () => ({
   trustProxy: process.env.TRUST_PROXY as string | undefined,
   retentionDays: Number(process.env.RETENTION_DAYS ?? 90),          // exact coordinates are erased after this many days
   purgeIntervalMs: Number(process.env.PURGE_INTERVAL_MS ?? 86_400_000), // 0 disables the scheduled purge
-  tzOffsetMinutes: Number(process.env.TZ_OFFSET_MINUTES ?? 180),      // day boundaries for reports (Kenya: UTC+3, no daylight saving)
+  timezone: process.env.TIMEZONE ?? 'Africa/Nairobi',                 // organisation time zone for day boundaries in boards and reports
   rosterTtlMs: Number(process.env.ROSTER_TTL_MS ?? 30_000),
 });
 

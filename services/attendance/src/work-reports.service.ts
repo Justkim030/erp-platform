@@ -3,7 +3,7 @@ import { AuthUser } from './auth';
 import { AppConfig, CONFIG } from './config';
 import { Db, Q } from './db';
 import { WorkReportDto, WorkReportReviewDto } from './dto';
-import { AuditService, Member, Roster, newId } from './support';
+import { AuditService, Member, Roster, dayRangeInTz, newId, todayInTz } from './support';
 
 const marks = (n: number, from = 1) => Array.from({ length: n }, (_, i) => `$${i + from}`).join(',');
 
@@ -213,13 +213,11 @@ export class WorkReportsService {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || Number.isNaN(Date.parse(`${day}T00:00:00Z`))) {
       throw new BadRequestException('Date must look like 2026-10-16.');
     }
-    const start = Date.parse(`${day}T00:00:00Z`) - this.cfg.tzOffsetMinutes * 60_000;
-    return [new Date(start), new Date(start + 86_400_000)];
+    return dayRangeInTz(this.cfg.timezone, day);
   }
 
   private range(from?: string, to?: string) {
-    const today = new Date(Date.now() + this.cfg.tzOffsetMinutes * 60_000).toISOString().slice(0, 10);
-    const endDay = to ?? today;
+    const endDay = to ?? todayInTz(this.cfg.timezone);
     const startDay = from ?? new Date(Date.parse(`${endDay}T00:00:00Z`) - 30 * 86_400_000).toISOString().slice(0, 10);
     const [start] = this.dayRange(startDay);
     const [, end] = this.dayRange(endDay);

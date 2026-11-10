@@ -3,7 +3,12 @@
 # Usage: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\test-db-init.ps1 [-Stop]
 param([switch]$Stop)
 
-$bin = "C:\Program Files\PostgreSQL\18\bin"
+# Prefer the newest PostgreSQL whose client binaries actually work on this machine.
+# (PG 18 on this host hit repeated 0xC0000142 DLL-init crashes in backends; PG 17 is stable.)
+$candidates = '18','17','16','15'
+$bin = $null
+foreach ($v in $candidates) { $p = "C:\Program Files\PostgreSQL\$v\bin"; if (Test-Path (Join-Path $p 'pg_ctl.exe')) { $bin = $p; break } }
+if (-not $bin) { throw 'No PostgreSQL installation with bin\pg_ctl.exe found.' }
 $root = Join-Path $PSScriptRoot "..\.pgtest"
 $data = Join-Path $root "data"
 

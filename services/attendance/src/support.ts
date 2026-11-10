@@ -5,6 +5,32 @@ import { Db, Q } from './db';
 
 export function newId() { return require('crypto').randomUUID() as string; }
 
+/** Offset from UTC, in milliseconds, that the time zone has at the given instant. */
+function tzOffsetMs(tz: string, at: Date): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hour12: false, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  }).formatToParts(at);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)!.value);
+  const asUTC = Date.UTC(get('year'), get('month') - 1, get('day'), get('hour') % 24, get('minute'), get('second'));
+  return asUTC - at.getTime();
+}
+
+/** UTC instant range of local calendar day `day` (YYYY-MM-DD) in the time zone. */
+export function dayRangeInTz(tz: string, day: string): [Date, Date] {
+  const guess = Date.parse(`${day}T00:00:00Z`);
+  const offset = tzOffsetMs(tz, new Date(guess));
+  const start = guess - offset;
+  // DST transitions can make the first guess land on the wrong side; re-check.
+  const startExact = tzOffsetMs(tz, new Date(start)) === offset ? start : guess - tzOffsetMs(tz, new Date(start));
+  return [new Date(startExact), new Date(startExact + 86_400_000)];
+}
+
+/** Today's calendar date (YYYY-MM-DD) in the time zone. */
+export function todayInTz(tz: string, now = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
+}
+
 export interface AuditInput {
   tenantId?: string | null;
   actorId?: string | null;
@@ -66,11 +92,21 @@ export class IdentityRoster extends Roster {
     const key = `${user.tid}:${user.role}:${user.role === 'supervisor' ? user.sub : '*'}`;
     const hit = this.cache.get(key);
     if (hit && Date.now() - hit.at < this.cfg.rosterTtlMs) return hit.data;
-    let res: Response;
-    try { res = await fetch(`${this.cfg.identityUrl}/v1/users`, { headers: { authorization: `Bearer ${user.token}` } }); }
-    catch { throw new ServiceUnavailableException('The team directory is unavailable. Try again shortly.'); }
-    if (!res.ok) throw new ServiceUnavailableException('The team directory is unavailable. Try again shortly.');
-    const data = ((await res.json()) as Member[]).filter((m) => (m.role === 'worker' || m.role === 'supervisor') && m.id !== user.sub);
+    // Identity caps a single page at 200 rows, so walk every page. Without this,
+    // organisations above 200 people would silently lose members from every
+    // team-scoped query (board, map, reviews, reports).
+    const all: Member[] = [];
+    for (let page = 1; ; page++) {
+      let res: Response;
+      try { res = await fetch(`${this.cfg.identityUrl}/v1/users?page=${page}&pageSize=200`, { headers: { authorization: `Bearer ${user.token}` } }); }
+      catch { throw new ServiceUnavailableException('The team directory is unavailable. Try again shortly.'); }
+      if (!res.ok) throw new ServiceUnavailableException('The team directory is unavailable. Try again shortly.');
+      const body = (await res.json()) as { items?: Member[] };
+      const items = body.items ?? [];
+      all.push(...items);
+      if (items.length < 200) break;
+    }
+    const data = all.filter((m) => (m.role === 'worker' || m.role === 'supervisor') && m.id !== user.sub);
     this.cache.set(key, { at: Date.now(), data });
     return data;
   }

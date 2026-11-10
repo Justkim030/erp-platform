@@ -88,10 +88,11 @@ Remaining:
 
 - [x] Liveness/readiness endpoints and container healthchecks are in place; Attendance readiness checks the Identity JWKS endpoint.
 
-### Step 6 — N-1: rate limiting on the portal auth routes (1 day)
+### Step 6 — N-1: rate limiting on the portal auth routes — ✅ implemented
 
-- [ ] `apps/portal-web/lib/rate-limit.ts`: in-memory token bucket keyed by IP (e.g. 10 attempts / 5 min on login & activate).
-- [ ] Return 429 — the frontend already renders the friendly "too many attempts" message.
+- [x] `apps/portal-web/lib/rate-limit.ts`: in-memory token bucket keyed by IP (10 attempts / 5 min on login & activate).
+- [x] Return 429 — the frontend already renders the friendly "too many attempts" message.
+- [x] Note: per-instance only; move to a shared store (Redis) before running more than one portal instance.
 
 ### After that
 

@@ -33,9 +33,9 @@ export default async function HistoryPage({ searchParams }: { searchParams: { da
   const board = await svc<any>('attendance', `/v1/team/attendance?date=${day}`);
   return (
     <div className="stack">
-      <div><p className="eb">Team history and work reports</p><h1 className="h">{dateOf(`${day}T12:00:00+03:00`)}</h1></div>
-      <div className="daynav"><Link href={`/history?date=${shiftDay(day, -1)}`}>← Previous day</Link>{day < todayLocal() && <Link href={`/history?date=${shiftDay(day, 1)}`}>Next day →</Link>}</div>
-      {!board ? <p className="notice">History is unavailable right now.</p> : (
+        <div><p className="eb">Team history and work reports</p><h1 className="h">{dateOf(`${day}T12:00:00+03:00`)}</h1></div>
+          <div className="daynav"><Link href={`/history?date=${shiftDay(day, -1)}`}>← Previous day</Link>{day < todayLocal() && <Link href={`/history?date=${shiftDay(day, 1)}`}>Next day →</Link>}</div>
+        {!board ? <p className="notice">History is unavailable right now.</p> : (
         <div className="card">
           <b>{board.summary.present} of {board.summary.total} present · {board.summary.late} late · {board.summary.absent} absent</b>
           {board.members.map((m: any) => (
