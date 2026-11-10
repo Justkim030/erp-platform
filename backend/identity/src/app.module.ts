@@ -11,6 +11,7 @@ import { Db, PG_POOL } from './db';
 import { JwtGuard, PlatformGuard, RolesGuard } from './guards';
 import { ConsoleNotifier, Notifier } from './notifier';
 import { PasskeysService } from './passkeys.service';
+import { AuditRetentionService } from './retention';
 import { PasswordService, TokenService } from './security';
 
 @Module({
@@ -21,7 +22,7 @@ import { PasswordService, TokenService } from './security';
     { provide: PG_POOL, inject: [CONFIG], useFactory: (c: ReturnType<typeof config>) => new Pool({ connectionString: c.databaseUrl }) },
     { provide: Notifier, useClass: ConsoleNotifier },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
-    Db, PasswordService, TokenService, AuditService, AuthService, PasskeysService, AdminService, JwtGuard, RolesGuard, PlatformGuard,
+    Db, PasswordService, TokenService, AuditService, AuthService, PasskeysService, AdminService, JwtGuard, RolesGuard, PlatformGuard, AuditRetentionService,
   ],
 })
 export class AppModule {}

@@ -189,6 +189,18 @@ export class PasskeysService {
     if (!verification.verified || !verification.authenticationInfo.userVerified) {
       throw new UnauthorizedException('Passkey verification failed. Try again.');
     }
+    // Clone detection: authenticators must increment their signature counter. A
+    // counter that went BACKWARDS means the credential was cloned and is being
+    // used from a second device — refuse and revoke the credential.
+    const newCounter = verification.authenticationInfo.newCounter;
+    if (newCounter > 0 && newCounter < Number(credential.counter)) {
+      await this.db.query('DELETE FROM passkeys WHERE id=$1', [credential.id]);
+      await this.audit.record({
+        tenantId: user.tid, actorId: user.sub, action: 'passkey.counter_regression', target: credential.id,
+        ip: ctx?.ip, ua: ctx?.ua, meta: { previous: Number(credential.counter), received: newCounter },
+      });
+      throw new UnauthorizedException('This passkey has been disabled for your protection. Register it again.');
+    }
     const jti = newId();
     const proof = await this.tokens.signClockInProof({ sub: user.sub, tid: user.tid, jti });
     await this.db.tx(async (q) => {

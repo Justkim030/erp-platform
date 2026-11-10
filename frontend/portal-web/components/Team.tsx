@@ -1,11 +1,32 @@
 'use client';
 import Link from 'next/link';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 type Role = 'worker' | 'supervisor' | 'management' | 'admin';
 type U = { id: string; staffNumber: string; fullName: string; role: Role; status: string; supervisorId: string | null };
 type Issued = { name: string; code: string; expiresAt: string };
+
+/** Recently issued codes, kept client-side so a navigated-away-from code is recoverable.
+ *  localStorage is supervisor-local by definition (codes are shown once and belong to
+ *  whoever received them); entries expire with the code itself. */
+const CODES_KEY = 'ph_recent_codes';
+export function rememberCode(issued: Issued) {
+  try {
+    const list = JSON.parse(localStorage.getItem(CODES_KEY) ?? '[]') as (Issued & { expiresAtMs: number })[];
+    list.unshift({ ...issued, expiresAtMs: Date.parse(issued.expiresAt) });
+    localStorage.setItem(CODES_KEY, JSON.stringify(list.slice(0, 10)));
+  } catch { /* storage unavailable (private mode) — the code is still shown once */ }
+}
+export function recentCodes(): Issued[] {
+  try {
+    const now = Date.now();
+    const list = (JSON.parse(localStorage.getItem(CODES_KEY) ?? '[]') as (Issued & { expiresAtMs: number })[])
+      .filter((c) => c.expiresAtMs > now)
+      .map(({ expiresAtMs, ...rest }) => rest);
+    return list;
+  } catch { return []; }
+}
 
 function CodeCard({ issued, onClose }: { issued: Issued; onClose?: () => void }) {
   const [copied, setCopied] = useState(false);
@@ -48,7 +69,9 @@ export function AddEmployee({ role, supervisors }: { role: Role; supervisors: U[
       setError(res.status === 409 ? 'A person with this staff number already exists.' : res.status === 403 ? 'You cannot add this kind of account.' : typeof message === 'string' ? message : 'Please check the details and try again.');
       return;
     }
-    setIssued({ name: body.fullName as string, code: data.activationCode, expiresAt: data.expiresAt });
+    const issued = { name: body.fullName as string, code: data.activationCode, expiresAt: data.expiresAt };
+    setIssued(issued);
+    rememberCode(issued);
     (e.target as HTMLFormElement).reset();
   }
 
@@ -87,6 +110,8 @@ export function TeamList({ users, canReset, canAssign, supervisors }: { users: U
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [assignment, setAssignment] = useState<Record<string, string>>({});
+  const [recent, setRecent] = useState<Issued[]>([]);
+  useEffect(() => { setRecent(recentCodes()); }, []);
 
   async function reset(u: U) {
     if (!confirm(`Reset access for ${u.fullName}? Their current PIN or password stops working and they will need a new code.`)) return;
@@ -95,7 +120,9 @@ export function TeamList({ users, canReset, canAssign, supervisors }: { users: U
     const data = await res.json().catch(() => ({}));
     setBusy(null);
     if (!res.ok) { setError('Access could not be reset for this person.'); return; }
-    setIssued({ name: u.fullName, code: data.activationCode, expiresAt: data.expiresAt });
+    const issued = { name: u.fullName, code: data.activationCode, expiresAt: data.expiresAt };
+    setIssued(issued);
+    rememberCode(issued);
     router.refresh();
   }
 
@@ -123,6 +150,20 @@ export function TeamList({ users, canReset, canAssign, supervisors }: { users: U
   return (
     <div className="stack">
       {issued && <CodeCard issued={issued} onClose={() => setIssued(null)} />}
+      {recent.length > 0 && (
+        <details className="card">
+          <summary style={{ cursor: 'pointer', fontWeight: 800, fontSize: 14 }}>Recently issued codes ({recent.length})</summary>
+          <p className="sub" style={{ marginTop: 8 }}>Codes from this device that have not expired yet. Give each one to its person — it works once.</p>
+          {recent.map((c) => (
+            <div className="li" key={c.code}>
+              <span>{c.name}<small>expires {new Date(c.expiresAt).toLocaleDateString('en-GB')}</small></span>
+              <span className="actions"><code className="code-inline">{c.code}</code>
+                <button className="link" onClick={async () => { await navigator.clipboard?.writeText(c.code); setRecent(recentCodes()); }}>Copy</button>
+              </span>
+            </div>
+          ))}
+        </details>
+      )}
       {error && <div className="err" role="alert">{error}</div>}
       <div className="card">
         {users.length === 0 && <p className="sub">No team members yet. Add your first employee.</p>}

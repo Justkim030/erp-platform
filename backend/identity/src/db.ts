@@ -8,10 +8,16 @@ export type Q = <T = any>(text: string, params?: any[]) => Promise<T[]>;
 @Injectable()
 export class Db implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger('Db');
+  private initPromise?: Promise<void>;
   constructor(@Inject(PG_POOL) private readonly pool: Pool) {}
 
   async onModuleInit() {
-    await this.migrate();
+    await this.ensureReady();
+  }
+  /** Idempotent: resolves once migrations have run. Background jobs call this before their first query. */
+  async ensureReady() {
+    if (!this.initPromise) this.initPromise = this.migrate();
+    await this.initPromise;
   }
   async onModuleDestroy() {
     await this.pool.end();

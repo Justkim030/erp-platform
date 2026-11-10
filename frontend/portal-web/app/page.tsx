@@ -10,7 +10,8 @@ export default function Splash() {
     (async () => {
       const [s] = await Promise.all([
         fetch('/api/auth/session', { cache: 'no-store' }).then((r) => r.json()).catch(() => ({ authenticated: false })),
-        new Promise((r) => setTimeout(r, 700)),
+        // Respect reduced-motion users: skip the artificial delay for them.
+        matchMedia('(prefers-reduced-motion: reduce)').matches ? Promise.resolve() : new Promise((r) => setTimeout(r, 700)),
       ]);
       if (alive) router.replace(s.authenticated ? '/home' : '/login');
     })();

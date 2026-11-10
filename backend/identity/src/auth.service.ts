@@ -108,7 +108,12 @@ export class AuthService {
 
   async refresh(token: string, ctx: Ctx) {
     const row = (await this.db.query('SELECT * FROM refresh_tokens WHERE token_hash=$1', [sha256(token)]))[0];
-    if (!row) throw new UnauthorizedException();
+    if (!row) {
+      // Equalise timing between "unknown token" and "known but invalid" paths so a
+      // prober cannot distinguish them by response latency.
+      await this.pw.dummyVerify(token);
+      throw new UnauthorizedException();
+    }
     if (row.used_at || row.revoked_at) {
       // A rotated token was presented again: assume theft and end the whole session family.
       await this.revokeFamily(row.family_id);

@@ -272,3 +272,19 @@ describe('tenant isolation', () => {
   });
   it('reports health', async () => { await api().get('/health').expect(200); });
 });
+
+describe('security hardening regressions', () => {
+  it('audit retention purge erases rows older than the retention window', async () => {
+    const db = app.get(Db);
+    const old = new Date(Date.now() - 400 * 86_400_000);
+    await db.query(`INSERT INTO audit_events (id, action, created_at) VALUES ($1, 'test.old', $2)`, [newId(), old]);
+    const fresh = await db.query(`INSERT INTO audit_events (id, action, created_at) VALUES ($1, 'test.fresh', now()) RETURNING id`, [newId()]);
+    const { AuditRetentionService } = await import('../src/retention');
+    const svc = app.get(AuditRetentionService);
+    await svc.purge();
+    const gone = await db.query('SELECT id FROM audit_events WHERE action=$1', ['test.old']);
+    const kept = await db.query('SELECT id FROM audit_events WHERE id=$1', [fresh[0].id]);
+    expect(gone).toHaveLength(0);
+    expect(kept).toHaveLength(1);
+  });
+});

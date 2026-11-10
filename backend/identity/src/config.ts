@@ -18,6 +18,8 @@ export const config = () => ({
   webauthnOrigins: (process.env.WEBAUTHN_ORIGINS ?? 'http://localhost:3000').split(',').map((s) => s.trim()).filter(Boolean),
   trustProxy: process.env.TRUST_PROXY as string | undefined,
   platformAllowedIps: (process.env.PLATFORM_ALLOWED_IPS ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+  auditRetentionDays: Number(process.env.AUDIT_RETENTION_DAYS ?? 365),   // audit rows are erased after this many days
+  auditPurgeIntervalMs: Number(process.env.AUDIT_PURGE_INTERVAL_MS ?? 86_400_000), // 0 disables the scheduled purge
 });
 
 /** Required configuration in production. Services must not start without a real database and signing key. */
@@ -52,6 +54,9 @@ export function validateProductionConfig(c: AppConfig): string[] {
       problems.push('WEBAUTHN_ORIGINS must contain valid origins.');
       break;
     }
+  }
+  if (!Number.isInteger(c.auditRetentionDays) || c.auditRetentionDays < 30) {
+    problems.push('AUDIT_RETENTION_DAYS must be an integer of at least 30 (audit data is personal data too).');
   }
   return problems;
 }
