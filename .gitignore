@@ -12,6 +12,11 @@ coverage
 backups/
 qa-standalone*/
 
+# Local-only material: this repo tracks production-needed files only.
+# Documentation and the performance-test harness live on the maintainer's disk.
+docs/
+scripts/perf/
+
 # Build artifacts
 *.tsbuildinfo
 
