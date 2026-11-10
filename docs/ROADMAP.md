@@ -1,6 +1,6 @@
 # Improvement Roadmap — ERP Platform v0.2
 
-**Developer & maintainer: JUSTKIM** · Prioritised backlog derived from the production audit. Items marked 🔴 block go-live; 🟡 should land within the first month; 🟢 later. Your working procedure lives in `docs/DEVELOPER-GUIDE.md`; the go-live runbook is `docs/PRODUCTION-CHECKLIST.md`.
+**Developer & maintainer: JUSTKIM** · Prioritised backlog derived from the production audit. Items marked 🔴 block go-live; 🟡 should land within the first month; 🟢 later. Your working procedure lives in `docs/DEVELOPER-GUIDE.md`; the go-live runbook is `docs/PRODUCTION-CHECKLIST.md`; the readiness assessment and phased plan are `docs/GO-LIVE-PLAN.md`.
 
 ## 🔴 Blockers (before production)
 
@@ -32,6 +32,9 @@
 | L-3 | Admin UI for supervisors instead of API-only flows               | reuse the portal's component library          |
 | L-4 | Multi-region / managed Postgres evaluation                       | revisit when moving off single-host compose   |
 | L-5 | Automated dependency updates (Renovate) + `npm audit` gate in CI | add `npm audit --production` step to `ci.yml` |
+| L-6 | Collapse `/attendance/state` to a single DB round trip | perf finding: 4 sequential awaits dominate its latency; harness in `scripts/perf/` |
+| L-7 | Board aggregation as a single GROUP BY query | perf finding: JS loop cost grows with team size |
+| L-8 | Redis-backed throttler buckets before multi-instance Identity | required companion of scaling Identity for the login rush |
 
 ## Definition of done for any roadmap item
 
