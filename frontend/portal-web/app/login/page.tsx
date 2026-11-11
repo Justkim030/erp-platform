@@ -33,6 +33,7 @@ export default function LoginPage() {
       </form>
       <p className="sub" style={{ textAlign: 'center' }}>First time here? <Link href="/activate">Set up your access</Link></p>
       <p className="sub" style={{ textAlign: 'center' }}>Forgot your PIN or password? Ask your supervisor for a new activation code.</p>
+      <p className="mini" style={{ textAlign: 'center' }}><Link href="/privacy">Privacy notice</Link></p>
     </AuthFrame>
   );
 }

@@ -44,7 +44,7 @@ export default function ActivatePage() {
         <label>Phone number (optional)<input name="phone" type="tel" autoComplete="tel" /></label>
         <button className="btn" disabled={busy}>{busy ? 'Saving…' : 'Save and continue'}</button>
       </form>
-      <p className="sub" style={{ textAlign: 'center' }}>By continuing you acknowledge the privacy notice. Already set up? <Link href="/login">Log in</Link></p>
+      <p className="sub" style={{ textAlign: 'center' }}>By continuing you acknowledge the <Link href="/privacy">privacy notice</Link>. Already set up? <Link href="/login">Log in</Link></p>
     </AuthFrame>
   );
 }

@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { LogoutButton } from '@/components/LogoutButton';
 import { PasskeyManager } from '@/components/PasskeyManager';
 import { getSession, svc } from '@/lib/session';
@@ -24,7 +25,7 @@ export default async function ProfilePage() {
         ? passkeys ? <PasskeyManager passkeys={passkeys} /> : <p className="notice">Passkey settings are unavailable right now. Refresh the page to try again.</p>
         : <div className="card"><p className="sub">Passkeys are currently used by workers to confirm clock-ins.</p></div>}
       <p className="sec">Privacy and data</p>
-      <div className="card"><div className="li"><span>What we collect<small>Account details and clock-in times. No location tracking.</small></span></div></div>
+      <div className="card"><div className="li"><span>What we collect<small>Account details and clock-in times. No location tracking. Full details: <Link href="/privacy">privacy notice</Link>.</small></span></div></div>
       <div className="card stack">
         <b>Your data rights</b>
         <p className="sub">You can ask your employer at any time to:</p>
