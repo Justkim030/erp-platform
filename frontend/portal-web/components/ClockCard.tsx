@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { startAuthentication, type PublicKeyCredentialRequestOptionsJSON } from '@simplewebauthn/browser';
 import { getReading, type Reading } from '@/lib/geo';
 import { duration, timeOf } from '@/lib/labels';
+import { count, enqueue, isNetworkError, markAttempted, pending, type QueuedClockEvent } from '@/lib/clock-queue';
 
 type Site = { id: string; name: string };
 type Result = { outcome: 'accepted' | 'review' | 'declined'; message: string };
@@ -19,9 +20,36 @@ export function ClockCard({ state, since, sites, siteId: openSite }: {
   const [now, setNow] = useState<number | null>(null);
   const [locationConsent, setLocationConsent] = useState<boolean | null>(null);
   const [pendingPasskey, setPendingPasskey] = useState<PendingPasskey | null>(null);
+  const [queued, setQueued] = useState(0);
   const kind = state === 'in' ? 'out' : 'in';
 
   useEffect(() => { setNow(Date.now()); const t = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(t); }, []);
+  useEffect(() => { setQueued(count()); }, []);
+
+  // Drain the offline queue automatically when connectivity returns.
+  useEffect(() => {
+    if (!queued) return;
+    const drain = async () => {
+      for (const event of pending()) {
+        try {
+          const res = await fetch(`/api/svc/attendance/v1/attendance/clock-${event.kind}`, {
+            method: 'POST', headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ siteId: event.siteId, reading: event.reading, requestReview: event.requestReview || undefined, workSummary: event.workSummary }),
+          });
+          // 409 = the state changed while offline (already clocked in/out): the queued
+          // event is moot, drop it. Other server answers stay queued for inspection.
+          await markAttempted(event.id, res.ok || res.status === 409 ? 'succeeded' : 'failed', res.status);
+        } catch {
+          await markAttempted(event.id, 'failed');
+          break; // still offline — stop the drain and wait for the next online event
+        }
+      }
+      setQueued(count());
+      if (count() < (await pending()).length || count() === 0) router.refresh();
+    };
+    window.addEventListener('online', drain);
+    return () => window.removeEventListener('online', drain);
+  }, [queued, router]);
   const mins = state === 'in' && since && now ? Math.max(0, Math.floor((now - Date.parse(since)) / 60_000)) : null;
 
   async function record(requestReview: boolean, reading?: Reading, passkeyProof?: string) {
@@ -29,7 +57,21 @@ export function ClockCard({ state, since, sites, siteId: openSite }: {
     let res: Response;
     try {
       res = await fetch(`/api/svc/attendance/v1/attendance/clock-${kind}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-    } catch {
+    } catch (error) {
+      // Network unavailable: queue the event with its original reading timestamp and
+      // let the drain-on-reconnect logic submit it later. This only applies to pure
+      // network failures — passkey proofs are short-lived, so those are not queued.
+      if (isNetworkError(error) && !passkeyProof) {
+        enqueue({
+          kind, siteId: siteId || undefined, reading, requestReview: requestReview || undefined,
+          workSummary: kind === 'out' ? (body.workSummary as string | undefined) : undefined,
+          createdAt: Date.now(),
+        });
+        setQueued(count());
+        setBusy(false);
+        setResult({ outcome: 'review', message: 'You appear to be offline. Your clock entry is saved on this device and will be sent automatically when you are back online. Your supervisor will see the real time you tapped.' });
+        return;
+      }
       setBusy(false);
       setResult({ outcome: 'declined', message: 'Attendance could not be recorded. Check your connection and try again.' });
       return;
@@ -129,6 +171,7 @@ export function ClockCard({ state, since, sites, siteId: openSite }: {
         </button>
         {kind === 'out' && <p className="sub" style={{ marginTop: 10 }}>Clock out when you leave. Submit your activity report afterwards.</p>}
         {sites.length === 0 && <p className="sub" style={{ marginTop: 8 }}>No site has been set up yet. Ask your manager.</p>}
+        {queued > 0 && <p className="sub" style={{ marginTop: 8 }}>⏳ {queued} saved entr{queued === 1 ? 'y' : 'ies'} on this device waiting to send — will go automatically when you are online.</p>}
       </div>
 
       {locationConsent !== null && (

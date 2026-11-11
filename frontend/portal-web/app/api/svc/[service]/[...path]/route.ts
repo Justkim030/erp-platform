@@ -27,9 +27,39 @@ const ALLOW = [
 ];
 const TARGET: Record<string, string> = { identity: IDENTITY_URL, attendance: ATTENDANCE_URL };
 
+/**
+ * Circuit breaker for upstream services.
+ *
+ * Without this, a slow/hung upstream (e.g. Postgres stall) makes every browser
+ * request hang for its full timeout while Node keeps the socket and closure alive —
+ * memory climbs and the portal process dies under load. The breaker fails fast
+ * (503) while an upstream is known-bad and retries a probe cheaply, so recovery
+ * is automatic the moment the upstream answers again.
+ */
+const breakerState: Record<string, { failures: number; openUntil: number }> = { identity: { failures: 0, openUntil: 0 }, attendance: { failures: 0, openUntil: 0 } };
+const BREAKER_THRESHOLD = 5;    // consecutive failures before opening
+const BREAKER_COOLDOWN_MS = 10_000; // probe again after this long
+
+function breakerAllows(service: string): boolean {
+  const b = breakerState[service];
+  if (!b) return true;
+  if (b.openUntil > Date.now()) return false;
+  return true;
+}
+function breakerRecord(service: string, ok: boolean) {
+  const b = breakerState[service];
+  if (!b) return;
+  if (ok) { b.failures = 0; b.openUntil = 0; return; }
+  b.failures += 1;
+  if (b.failures >= BREAKER_THRESHOLD) b.openUntil = Date.now() + BREAKER_COOLDOWN_MS;
+}
+
 async function handle(req: NextRequest, { params }: { params: { service: string; path: string[] } }) {
   const key = `${params.service}/${params.path.join('/')}`;
   if (!TARGET[params.service] || !ALLOW.some((r) => r.test(key))) return NextResponse.json({ message: 'Not found' }, { status: 404 });
+  if (!breakerAllows(params.service)) {
+    return NextResponse.json({ message: 'The service is temporarily unavailable. Please try again shortly.' }, { status: 503, headers: { 'retry-after': '10' } });
+  }
   if (req.method !== 'GET' && !sameOrigin(req)) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
 
   let token = req.cookies.get('ph_at')?.value;
@@ -55,10 +85,13 @@ async function handle(req: NextRequest, { params }: { params: { service: string;
   try {
     upstream = await fetch(`${TARGET[params.service]}/${params.path.join('/')}${req.nextUrl.search}`, {
       method: req.method, headers, body: req.method === 'GET' ? undefined : await req.text(), cache: 'no-store',
+      signal: AbortSignal.timeout(15_000), // never wait forever on a hung upstream
     });
   } catch {
+    breakerRecord(params.service, false);
     return NextResponse.json({ message: 'The service is unavailable. Please try again shortly.' }, { status: 503 });
   }
+  breakerRecord(params.service, upstream.status < 500);
   const outHeaders = new Headers({
     'content-type': upstream.headers.get('content-type') ?? 'application/json',
     'cache-control': 'no-store',

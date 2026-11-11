@@ -3,6 +3,7 @@
 services:
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: platform
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-platform}
@@ -18,6 +19,7 @@ services:
 
   identity:
     build: { context: ., dockerfile: backend/identity/Dockerfile }
+    restart: unless-stopped
     environment:
       NODE_ENV: production
       DATABASE_URL: postgres://platform:${POSTGRES_PASSWORD:-platform}@postgres:5432/identity
@@ -40,6 +42,7 @@ services:
 
   attendance:
     build: { context: ., dockerfile: backend/attendance/Dockerfile }
+    restart: unless-stopped
     environment:
       NODE_ENV: production
       DATABASE_URL: postgres://platform:${POSTGRES_PASSWORD:-platform}@postgres:5432/attendance
@@ -59,6 +62,7 @@ services:
       start_period: 30s
 
   portal:
+    restart: unless-stopped
     build:
       context: .
       dockerfile: frontend/portal-web/Dockerfile
