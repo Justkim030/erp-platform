@@ -37,10 +37,13 @@ export default function MapView({ points = [], sites = [], pick, onPick }: Props
   pickRef.current = onPick;
 
   useEffect(() => {
-    const m = L.map(el.current!).setView([-0.5388, 37.4596], 13);
+    // Data-saver: on small screens cap zoom (fewer, coarser tiles) and drop the
+    // high-DPI tile variants — the difference halves tile bytes on metered plans.
+    const mobile = matchMedia('(max-width: 900px)').matches;
+    const m = L.map(el.current!, { preferCanvas: mobile }).setView([-0.5388, 37.4596], 13);
     const tileOptions: L.TileLayerOptions = {
       minZoom: 3,
-      maxZoom: 19,
+      maxZoom: mobile ? 17 : 19,
       attribution: TILE_ATTRIBUTION,
       referrerPolicy: 'strict-origin-when-cross-origin',
       updateWhenIdle: true,

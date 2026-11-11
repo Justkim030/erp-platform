@@ -3,6 +3,7 @@ import { PasskeyManager } from '@/components/PasskeyManager';
 import { getSession, svc } from '@/lib/session';
 
 const ROLE_LABEL = { worker: 'Worker', supervisor: 'Supervisor', management: 'Management', admin: 'Administrator' } as const;
+const RETENTION_DAYS = process.env.NEXT_PUBLIC_RETENTION_DAYS ?? '90';
 
 export default async function ProfilePage() {
   const u = (await getSession())!;
@@ -24,6 +25,14 @@ export default async function ProfilePage() {
         : <div className="card"><p className="sub">Passkeys are currently used by workers to confirm clock-ins.</p></div>}
       <p className="sec">Privacy and data</p>
       <div className="card"><div className="li"><span>What we collect<small>Account details and clock-in times. No location tracking.</small></span></div></div>
+      <div className="card stack">
+        <b>Your data rights</b>
+        <p className="sub">You can ask your employer at any time to:</p>
+        <div className="li"><span>See your data<small>What we hold about you, including your clock history and any saved work reports.</small></span></div>
+        <div className="li"><span>Correct your data<small>Wrong name, phone number or staff record — your supervisor can fix it.</small></span></div>
+        <div className="li"><span>Delete your data<small>When you leave the company. Location points are already erased automatically after {RETENTION_DAYS} days.</small></span></div>
+        <p className="sub">Requests go through your supervisor or the person who manages attendance. This system records who viewed your locations and when, and never tracks movement between clock events.</p>
+      </div>
       <LogoutButton />
     </div>
   );
