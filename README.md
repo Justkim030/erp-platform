@@ -97,7 +97,9 @@ PLATFORM_BOOTSTRAP_TOKEN=... ORG_NAME="Your Company" ORG_SLUG=yourco ADMIN_STAFF
 
 | Area | Status |
 |---|---|
-| Behaviour correctness | 51 automated e2e tests (39 fast + real-DB suites), CI-gated |
+| Behaviour correctness | 71 automated e2e tests passing (39 Identity + 32 Attendance), plus 17 real-DB tests (migrations, concurrency) runnable with `npm run test:pg`; CI-gated |
+| Resilience & offline | Offline clock-event queue with drain-on-reconnect; BFF circuit breaker + upstream timeouts; compose restart policies |
+| Privacy | Full privacy notice at `/privacy` linked from login, activation, and profile; audit-log retention job |
 | Load | 3,000-user harness: 0 errors, hot DB queries 0.1–0.2 ms; login is CPU-bound → scale Identity horizontally |
 | Docker stack | Defined and compose-validated; **first end-to-end run pending** (see deployment guide Phase A) |
 | Browser/device | Desktop-tested; real-phone walk-through pending (deployment guide Phase C) |
